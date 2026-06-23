@@ -10,7 +10,7 @@ st.title("🇰🇭 GEMS 모바일 크메르어 학습기")
 st.write("단어 목록에서 항목을 선택하면 폰에서 발음이 자동 재생됩니다.")
 
 # 2. 엑셀 파일 로드 (본인의 엑셀 파일명과 경로에 맞게 수정)
-EXCEL_FILE = "캄보디아어 공부1.xlsm"
+EXCEL_FILE = "캄보디아어 공부.xlsm"
 
 @st.cache_data
 def load_data():
