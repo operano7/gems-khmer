@@ -8,11 +8,11 @@ import base64
 import streamlit.components.v1 as components
 
 # 1. 화면 설정
-st.set_page_config(page_title="GEMS Mobile 캄보디아어 학습기", page_icon="🔊", layout="wide")
-st.title("🇰🇭 GEMS 모바일 캄보디아어 학습기 (공통 배속 지원)")
+st.set_page_config(page_title="오미로 크메르어 학습기", page_icon="🔊", layout="wide")
+st.title("🇰🇭 오미로 크메르어 학습기")
 
 # 💡 [TTS 선택 UI: 다중 선택 가능한 가로형 체크박스]
-st.markdown("🗣️ **음성 TTS 종류를 설정하세요:** (여러 개를 체크하면 바통을 넘기듯 순차적으로 재생됩니다)")
+st.markdown("🗣️ **음성 TTS 종류를 설정하세요:**")
 col_v1, col_v2, col_v3, _ = st.columns([1.1, 1.6, 1.6, 2.5])
 
 with col_v1:
@@ -27,15 +27,13 @@ if use_google: voice_options.append("Google (여성)")
 if use_edge_m: voice_options.append("Edge 남성 (Piseth Neural)")
 if use_edge_f: voice_options.append("Edge 여성 (Sreymom Neural)")
 
-st.caption("💡 [알림] Google은 또렷한 표준 기계음이며, Edge는 캄보디아 현지인(남/녀)의 자연스러운 실전 억양입니다.")
-
 if not voice_options:
     st.warning("⚠️ 재생할 목소리를 최소 1개 이상 체크해 주세요.")
 
 st.markdown("---")
 
 # 💡 [속도 조절 UI: TTS 선택과 디자인을 통일한 가로형 라디오 버튼]
-st.markdown("🐢 **전 TTS 공통 재생 속도를 설정하세요:** (모든 엔진에 공통 적용됩니다)")
+st.markdown("🐢 **전 TTS 공통 재생 속도를 설정하세요:**")
 speed_choice = st.radio(
     "속도 선택",
     options=["아주 느리게 (0.6x)", "조금 느리게 (0.8x)", "보통 속도 (1.0x)"],
