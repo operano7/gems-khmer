@@ -36,6 +36,11 @@ html, body, div, span, p, a, table, td, th, [class*="st-"], .stApp {
 div[role="radiogroup"] {
     gap: 3rem !important; 
 }
+
+/* 💡 추가: 체크박스 텍스트(Edge 남성/여성) 강제 한 줄 표시 (줄바꿈 방지) */
+div[data-testid="stCheckbox"] p {
+    white-space: nowrap !important;
+}
 </style>
 
 <!-- 3. 💡 폰트 프리로딩(Preloading) 핵: 표가 그려지기 전 브라우저가 굵은 폰트를 즉시 다운받도록 투명/숨김 텍스트 배치 -->
@@ -46,8 +51,8 @@ div[role="radiogroup"] {
 
 # 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
 st.markdown("🗣️ **음성 종류를 설정하세요:**")
-# 컬럼 비율 조정: Google (여성)이 줄바꿈되지 않도록 첫 번째 열의 비율을 약간 늘렸습니다. (0.5 -> 0.7)
-col_v1, col_v2, col_v3, _ = st.columns([0.7, 0.9, 0.9, 3.5])
+# 컬럼 비율 조정: Edge TTS 텍스트가 넉넉히 한 줄에 들어가도록 2, 3번째 열 비율을 대폭 확장했습니다.
+col_v1, col_v2, col_v3, _ = st.columns([0.8, 1.5, 1.5, 2.2])
 
 with col_v1:
     use_google = st.checkbox("Google (여성)", value=True)
@@ -232,120 +237,4 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [핵심 UI 개선] 불필요한 '오디오 로딩 중...' 문구를 삭제하고 텍스트 공간을 완전히 비웠습니다.
-    html_code = f"""
-    <div style="background-color: #f0f2f6; padding: 5px 10px; border-radius: 8px;">
-        <audio id="sequentialPlayer" controls autoplay style="width: 100%; height: 35px; outline: none;"></audio>
-        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 13px; color: #d9534f; font-weight: bold;"></div>
-    </div>
-    <script>
-        var audios = {js_array};
-        var currentIdx = 0;
-        var player = document.getElementById("sequentialPlayer");
-        var status = document.getElementById("statusText");
-
-        function updateStatus() {{
-            status.innerText = "";
-        }}
-
-        if(audios.length > 0) {{
-            player.src = audios[0];
-            updateStatus();
-            
-            var playPromise = player.play();
-            if (playPromise !== undefined) {{
-                playPromise.catch(function(error) {{
-                    status.style.marginTop = "5px";
-                    status.innerText = "⏸️ 스마트폰 보안 차단: 위 재생(▶) 버튼을 수동으로 눌러주세요.";
-                }});
-            }}
-
-            player.onended = function() {{
-                currentIdx++;
-                if(currentIdx < audios.length) {{
-                    player.src = audios[currentIdx];
-                    updateStatus();
-                    player.play();
-                }} else {{
-                    status.innerText = "";
-                }}
-            }};
-        }}
-    </script>
-    """
-    components.html(html_code, height=60)
-
-if processed_df is not None:
-    search_query = st.text_input("🔍 검색어 입력:", "")
-    
-    if search_query:
-        filtered_df = processed_df[
-            processed_df['번호'].str.contains(search_query, na=False) |
-            processed_df['캄보디아어'].str.contains(search_query, na=False) | 
-            processed_df['발음'].str.contains(search_query, na=False) |
-            processed_df['해석'].str.contains(search_query, na=False)
-        ].reset_index(drop=True)
-    else:
-        filtered_df = processed_df.reset_index(drop=True)
-
-    # 💡 [핵심 UI 개선] 플레이어와 단어 정보가 표 아래로 밀리지 않도록 상단 고정 컨테이너 생성
-    player_container = st.container()
-    
-    # 여백을 제거한 커스텀 구분선
-    st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
-    st.caption(f"총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)")
-
-    # 💡 무력화되는 Pandas Styler를 삭제하고, 깔끔하게 원본 DataFrame을 렌더링합니다.
-    display_df = filtered_df.drop(columns=['한국어', '영어'])
-    
-    selection = st.dataframe(
-        display_df,
-        use_container_width=True,
-        hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row"
-    )
-
-    selected_rows = []
-    if hasattr(selection, "selection"):
-        selected_rows = selection.selection.rows
-    elif isinstance(selection, dict):
-        selected_rows = selection.get("selection", {}).get("rows", [])
-
-    # 선택 결과가 있으면 최상단 player_container에 UI를 출력합니다.
-    if selected_rows:
-        selected_idx = selected_rows[0]
-        selected_num = filtered_df.iloc[selected_idx]['번호']
-        selected_word = filtered_df.iloc[selected_idx]['캄보디아어']
-        selected_pron = filtered_df.iloc[selected_idx]['발음']
-        selected_kor = filtered_df.iloc[selected_idx]['한국어']
-        selected_eng = filtered_df.iloc[selected_idx]['영어']
-        
-        with player_container:
-            num_str = f"[{selected_num}] " if selected_num else ""
-            
-            # 선택된 영역의 폰트 속성 적용 HTML
-            st.markdown(f"""
-            <div style="padding: 1rem; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc; margin-bottom: 1rem;">
-                <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # 한글/영문 색상 분리
-            colored_mean_parts = []
-            if selected_kor: colored_mean_parts.append(f":green[{selected_kor}]")
-            if selected_eng: colored_mean_parts.append(f":orange[{selected_eng}]")
-            
-            colored_mean = " ".join(colored_mean_parts)
-            pron_str = f"{selected_pron} " if selected_pron else ""
-            st.info(f"💡 {pron_str}{colored_mean}")
-
-            if voice_options:
-                with st.spinner(f"🎵 선택하신 {len(voice_options)}개의 고품질 음성(배속: {final_speed_level_desc})을 동시 준비 중입니다..."):
-                    audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
-                
-                for err in error_msgs:
-                    st.error(err)
-                
-                if audio_datas:
-                    play_sequential_audio(audio_datas, final_speed_level_desc)
+    # 💡 [핵심 UI 개선] 불필요한 '오디오 로딩 중...' 문
