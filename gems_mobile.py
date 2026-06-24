@@ -252,14 +252,18 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [공간 최적화 완벽 해결] 기존의 크고 두꺼운 재생 플레이어를 완전히 없애고, 
-    # 클릭 가능한 얇은 '텍스트 상태 표시줄' 형태로 UI를 압축 개조했습니다.
+    # 💡 [디자인 혁신] Flexbox를 활용하여 왼쪽 상태 텍스트와 오른쪽 재생 버튼을 한 줄에 나란히 배치했습니다.
     html_code = """
-    <div id="playerBox" style="background-color: #e2e3e5; padding: 6px 10px; border-radius: 6px; text-align: center; cursor: pointer; user-select: none;">
-        <!-- 기본 오디오 태그 숨김 (controls 속성 제거) -->
+    <div id="playerBox" style="display: flex; justify-content: space-between; align-items: center; background-color: #e2e3e5; padding: 6px 12px; border-radius: 6px; cursor: pointer; user-select: none;">
         <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
+        
+        <!-- 왼쪽: 현재 상태 표시 -->
         <div id="statusText" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 13px; font-weight: bold; color: #41464b;">
-            🔊 재생 준비 중...
+        </div>
+        
+        <!-- 오른쪽: 깔끔하고 명확한 재생 버튼 -->
+        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 13px; font-weight: bold; color: #0f5132; background-color: #ffffff; padding: 4px 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+            ▶️ 재생
         </div>
     </div>
     <script>
@@ -268,11 +272,15 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
         var player = document.getElementById("sequentialPlayer");
         var status = document.getElementById("statusText");
         var box = document.getElementById("playerBox");
+        var playBtn = document.getElementById("playBtn");
 
         function updateStatus() {
             status.style.color = "#0f5132"; // 진녹색
-            status.innerText = "🔊 음성 재생 중... (" + (currentIdx + 1) + "/" + audios.length + ")";
+            status.innerText = "🔊 재생 중... (" + (currentIdx + 1) + "/" + audios.length + ")";
             box.style.backgroundColor = "#d1e7dd"; // 연녹색 배경
+            playBtn.innerText = "▶️ 재생중";
+            playBtn.style.backgroundColor = "#e2e3e5";
+            playBtn.style.color = "#6c757d";
         }
 
         // 터치 시 강제로 재생 (스마트폰 보안 차단 해제용)
@@ -288,8 +296,11 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
             if (playPromise !== undefined) {
                 playPromise.catch(function(error) {
                     status.style.color = "#842029"; // 진빨강
-                    status.innerText = "⏸️ 모바일 보안 차단: [여기를 터치]하여 재생하세요";
+                    status.innerText = "⏸️ 모바일 차단 (우측 버튼 터치)";
                     box.style.backgroundColor = "#f8d7da"; // 연빨강 배경
+                    playBtn.innerText = "▶️ 재생";
+                    playBtn.style.backgroundColor = "#ffffff";
+                    playBtn.style.color = "#0f5132";
                 });
             }
 
@@ -301,16 +312,19 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
                     player.play();
                 } else {
                     status.style.color = "#41464b";
-                    status.innerText = "✅ 재생 완료 (다시 듣기를 원하시면 윗 표를 터치하세요)";
+                    status.innerText = "✅ 재생 완료";
                     box.style.backgroundColor = "#e2e3e5"; // 회색 배경 복구
+                    playBtn.innerText = "🔄 다시듣기";
+                    playBtn.style.backgroundColor = "#ffffff";
+                    playBtn.style.color = "#0f5132";
                 }
             };
         }
     </script>
     """.replace("__JS_ARRAY__", js_array)
     
-    # 💡 IFrame 컴포넌트의 높이를 60px에서 35px로 대폭 줄여 모바일 화면 낭비를 원천 차단했습니다.
-    components.html(html_code, height=35)
+    # 버튼 스타일링 등으로 인해 높이가 미세하게 커졌을 것을 대비해 height를 45로 넉넉하게 할당했습니다.
+    components.html(html_code, height=45)
 
 if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
