@@ -274,14 +274,51 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
     btn_text = "🔊 연속 재생중" if is_continuous else "🔊 재생중"
     btn_color = "#198754" if is_continuous else "#198754" # 재생중은 둘 다 초록색
     
-    # 💡 [자바스크립트 기반 무결점 넘김 로직]
+    # 💡 [디자인 완벽 일치] 버튼 규격, 수직 중앙 정렬, 마우스 Hover 애니메이션 추가
     html_code = f"""
-    <div id="playerBox" style="display: flex; justify-content: flex-start; align-items: flex-start; width: max-content; cursor: pointer; user-select: none;">
+    <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }}
+        #playerBox {{
+            display: flex;
+            justify-content: flex-start;
+            align-items: flex-start;
+            width: 100%;
+        }}
+        #playBtn {{
+            font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 16px;
+            color: #ffffff;
+            background-color: {btn_color};
+            border: 1px solid {btn_color};
+            padding: 0 14px;
+            height: 38.4px; /* 스트림릿 네이티브 버튼과 소수점까지 동일한 높이 적용 */
+            display: inline-flex;
+            justify-content: center;
+            align-items: center; /* 텍스트와 이모지를 수직 중앙에 완벽히 정렬 */
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: filter 0.2s ease, transform 0.1s; /* 마우스 Hover 시 부드러운 전환 효과 */
+            box-sizing: border-box;
+            user-select: none;
+            line-height: 1; /* 이모지 베이스라인으로 인한 상하 비대칭 완벽 교정 */
+            white-space: nowrap;
+        }}
+        /* 💡 마우스를 올렸을 때 전체적으로 살짝 어두워지는 Hover 액션 추가 */
+        #playBtn:hover {{
+            filter: brightness(0.85); 
+        }}
+        #playBtn:active {{
+            transform: scale(0.98);
+        }}
+    </style>
+
+    <div id="playerBox">
         <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
-        
-        <div id="playBtn" style="font-family: inherit; font-size: 15px; font-weight: bold; color: white; background-color: #0d6efd; padding: 0 16px; height: 38px; display: inline-flex; justify-content: center; align-items: center; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); transition: all 0.2s; white-space: nowrap; box-sizing: border-box;">
-            ▶️ 재생
-        </div>
+        <div id="playBtn">{btn_text}</div>
     </div>
     <script>
         var audios = {js_array};
@@ -294,6 +331,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
         function updateStatus() {{
             playBtn.innerText = "{btn_text}";
             playBtn.style.backgroundColor = "{btn_color}"; 
+            playBtn.style.borderColor = "{btn_color}"; 
         }}
 
         // 터치 시 강제로 재생 (스마트폰 보안 차단 해제용)
@@ -310,6 +348,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
                 playPromise.catch(function(error) {{
                     playBtn.innerText = "⏸️ 터치하여 시작";
                     playBtn.style.backgroundColor = "#dc3545"; // 빨간색 (모바일 차단 알림)
+                    playBtn.style.borderColor = "#dc3545";
                 }});
             }}
 
@@ -323,6 +362,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
                     if (isContinuous) {{
                         playBtn.innerText = "⏳ 다음 단어...";
                         playBtn.style.backgroundColor = "#6c757d";
+                        playBtn.style.borderColor = "#6c757d";
                         
                         // 💡 오디오 재생이 완벽히 끝나면, 부모 창에 있는 숨겨진 넘김 버튼을 찾아 자동으로 누릅니다!
                         var buttons = window.parent.document.querySelectorAll('button');
@@ -336,6 +376,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
                         // 단일 재생은 여기서 깔끔하게 종료됩니다.
                         playBtn.innerText = "▶️ 재생"; 
                         playBtn.style.backgroundColor = "#0d6efd"; // 파란색 (완료)
+                        playBtn.style.borderColor = "#0d6efd";
                     }}
                 }}
             }};
@@ -343,8 +384,8 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
     </script>
     """
     
-    # 컴포넌트 높이를 스트림릿 버튼(38px) 크기에 딱 맞춰 여백 최소화
-    components.html(html_code, height=42)
+    # 💡 iframe 컴포넌트의 높이를 스트림릿 기본 버튼 높이(38.4px)를 온전히 감쌀 수 있는 40px로 타이트하게 조절하여 높이 일치
+    components.html(html_code, height=40)
 
 if processed_df is not None:
     # 검색어 입력과 시트 선택은 상단에 이미 배치되었으므로 필터링 로직만 수행합니다.
