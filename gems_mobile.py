@@ -480,10 +480,11 @@ if processed_df is not None:
                         st.markdown(f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}"></audio>', unsafe_allow_html=True)
                         
                         # 다음 오디오가 겹쳐서 나오지 않도록 재생 길이만큼 파이썬 스레드 대기
+                        # 단어의 모든 옵션 재생이 완료될 때까지 대기하도록 로직을 수정했습니다.
                         estimated_length = max(1.5, len(selected_word) * 0.15) 
                         time.sleep(estimated_length)
                     
-                    # 현재 오디오 리스트 플레이가 끝나면, 다음 인덱스로 이동 후 자동 리런
+                    # 💡 단어 하나의 모든 음성 옵션 재생 완료 후 다음 단어로 인덱스 갱신
                     if target_idx + 1 < len(filtered_df):
                         st.session_state.current_play_idx += 1
                         time.sleep(0.5) # 단어 사이 짧은 휴식
