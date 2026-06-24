@@ -272,13 +272,13 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
     btn_text = "🔊 연속 재생중" if is_continuous else "🔊 재생중"
     btn_color = "#084298" if is_continuous else "#0f5132" # 연속재생은 짙은 파란색
     
-    # 💡 [위치 겹침 완벽 해결] 스트림릿 표의 우측 상단 UI 아이콘을 피하기 위해 margin-right를 130px로 확대했습니다.
+    # 💡 [완벽한 버튼 배치] 버튼이 표 상단의 안전한 구역에 배치되었으므로 화면과 충돌하는 margin-right 속성을 제거하고 width를 100%로 설정했습니다.
     html_code = f"""
-    <div id="playerBox" style="display: flex; justify-content: flex-end; align-items: center; width: 100%; cursor: pointer; user-select: none;">
+    <div id="playerBox" style="display: flex; justify-content: center; align-items: center; width: 100%; cursor: pointer; user-select: none;">
         <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
         
-        <!-- 오른쪽: 스트림릿 UI 겹침 방지를 위해 마진 부여. 버튼 하나만 남기기 위해 여백 조정 -->
-        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 14px; font-weight: bold; color: white; background-color: #198754; padding: 8px 16px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: all 0.2s; white-space: nowrap; margin-right: 130px; margin-bottom: 5px;">
+        <!-- 버튼 크기와 텍스트 형태를 Streamlit 버튼과 완벽하게 동일하게 렌더링 -->
+        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 14px; font-weight: bold; color: white; background-color: #198754; width: 100%; padding: 6px 0; text-align: center; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); transition: all 0.2s; white-space: nowrap; box-sizing: border-box;">
             ▶️ 재생
         </div>
     </div>
@@ -307,7 +307,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
             var playPromise = player.play();
             if (playPromise !== undefined) {{
                 playPromise.catch(function(error) {{
-                    playBtn.innerText = "⏸️ 터치하여 재생 시작";
+                    playBtn.innerText = "⏸️ 터치하여 시작";
                     playBtn.style.backgroundColor = "#dc3545"; // 빨간색 (모바일 차단 알림)
                 }});
             }}
@@ -321,10 +321,10 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
                 }} else {{
                     if (isContinuous) {{
                         // 연속 재생일 때는 완료 메시지 없이 백그라운드 파이썬으로 처리를 넘김
-                        playBtn.innerText = "⏳ 다음 단어 준비중...";
+                        playBtn.innerText = "⏳ 단어 준비중...";
                         playBtn.style.backgroundColor = "#6c757d";
-                        // 스트림릿과 통신하기 위해 임시 버튼 클릭 흉내 (실제로는 python loop가 처리)
                     }} else {{
+                        // 💡 "다시 듣기" 대신 텍스트와 아이콘을 통일
                         playBtn.innerText = "▶️ 재생"; 
                         playBtn.style.backgroundColor = "#0d6efd"; // 파란색 (완료)
                     }}
@@ -334,8 +334,8 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
     </script>
     """
     
-    # 컴포넌트 높이를 버튼 크기에 딱 맞추어 낭비되는 세로 여백을 원천 차단
-    components.html(html_code, height=45)
+    # 컴포넌트 높이를 스트림릿 버튼(40px내외) 크기에 딱 맞춤
+    components.html(html_code, height=42)
 
 if processed_df is not None:
     # 검색어 입력과 시트 선택은 상단에 이미 배치되었으므로 필터링 로직만 수행합니다.
@@ -355,15 +355,16 @@ if processed_df is not None:
     # 여백을 제거한 커스텀 구분선
     st.markdown("<hr style='margin-top: 0px; margin-bottom: 10px;'>", unsafe_allow_html=True)
     
-    # 💡 [레이아웃 혁신] 안내 문구와 우측 재생/연속 버튼을 한 줄에 배치
-    col_caption, col_btn_cont, col_btn_play = st.columns([0.65, 0.15, 0.2])
+    # 💡 [레이아웃 위치 변경] 안내 문구, '연속' 버튼, '재생' 버튼을 표 바로 위쪽(동일 선상)으로 완전히 옮겼습니다.
+    col_caption, col_btn_cont, col_btn_play = st.columns([0.6, 0.2, 0.2])
     
     with col_caption:
         # 버튼과 수평(높이)이 맞도록 padding-top을 살짝 추가
         st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
         
-    # 플레이어가 삽입될 빈 공간 (이제 사용 안 함, Python st.audio 스트리밍으로 대체)
-    # player_placeholder = col_player.empty()
+    # 버튼들이 들어갈 공간 확보 (나중에 선택된 후 이곳에 그려짐)
+    btn_cont_placeholder = col_btn_cont.empty()
+    btn_play_placeholder = col_btn_play.empty()
 
     # 무력화되는 Pandas Styler를 삭제하고, 깔끔하게 원본 DataFrame을 렌더링합니다.
     display_df = filtered_df.drop(columns=['한국어', '영어'])
@@ -409,17 +410,7 @@ if processed_df is not None:
             selected_eng = filtered_df.iloc[target_idx]['영어']
             
             with player_container:
-                # 💡 [버튼 배치] '연속' 버튼과 '단일 재생' 컨트롤 영역을 상단 컨테이너 우측에 배치
-                c1, c2, c3 = st.columns([0.65, 0.15, 0.2])
-                with c2:
-                    if st.button("⏹️ 중지" if st.session_state.is_continuous_playing else "🔁 연속", use_container_width=True):
-                        st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
-                        st.rerun()
-                
-                with c3:
-                    # 단일 재생 버튼 트리거용 빈 공간 (실제 UI는 custom HTML이 그림)
-                    btn_placeholder = st.empty()
-            
+                # 💡 [상단 UI 전용 렌더링 영역] 여기서는 단어 텍스트 박스만 그립니다.
                 num_str = f"[{selected_num}] " if selected_num else ""
                 pron_str = f"{selected_pron} " if selected_pron else ""
                 
@@ -458,17 +449,23 @@ if processed_df is not None:
                     for err in error_msgs:
                         st.error(err)
 
-            # 💡 [핵심] 오디오 재생 제어
+            # 💡 [안내문구 우측 버튼 삽입 로직]
+            with btn_cont_placeholder:
+                # 💡 아이콘 통일: ⏭️ 연속, ⏹️ 중지
+                if st.button("⏹️ 중지" if st.session_state.is_continuous_playing else "⏭️ 연속", use_container_width=True):
+                    st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
+                    st.rerun()
+
             if audio_datas:
                 # 단일 모드일 경우 기존의 커스텀 HTML 플레이어를 버튼 위치에 그림
                 if not st.session_state.is_continuous_playing:
-                    with btn_placeholder:
+                    with btn_play_placeholder:
                         play_sequential_audio(audio_datas, is_continuous=False)
                 
                 # 연속 모드일 경우, 스트림릿 내장 st.audio(autoplay=True)를 순차적으로 백그라운드 렌더링
                 elif st.session_state.is_continuous_playing:
-                    with btn_placeholder:
-                        st.markdown("<div style='text-align: right; padding-right: 130px; font-weight: bold; color: #084298;'>🔁 연속 재생중...</div>", unsafe_allow_html=True)
+                    with btn_play_placeholder:
+                        st.markdown("<div style='text-align: center; font-weight: bold; color: #084298; padding-top: 6px; font-size: 14px;'>⏭️ 연속재생중</div>", unsafe_allow_html=True)
                         
                     # 연속 생성된 오디오들을 순서대로 플레이
                     for ad in audio_datas:
@@ -477,8 +474,6 @@ if processed_df is not None:
                         st.markdown(f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}"></audio>', unsafe_allow_html=True)
                         
                         # 다음 오디오가 겹쳐서 나오지 않도록 재생 길이만큼 파이썬 스레드 대기
-                        # 임시로 오디오 길이를 예측(단어 길이 비례)하여 딜레이 부여. 
-                        # 완벽한 딜레이를 위해선 librosa 등이 필요하나 클라우드 환경 제약 상 보수적 시간 부여
                         estimated_length = max(1.5, len(selected_word) * 0.15) 
                         time.sleep(estimated_length)
                     
