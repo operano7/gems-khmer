@@ -442,18 +442,67 @@ if processed_df is not None:
 
     target_idx = st.session_state.current_play_idx
 
-    player_container = st.container()
+    # =================================================================================
+    # 💡 [구조 혁신: Layout Shift 원천 차단 (표 튐 버그 완벽 해결)]
+    # 이전 방식은 표를 먼저 그리고 빈공간을 예약한 뒤, 나중에 버튼을 쑤셔 넣는 방식이었습니다.
+    # 이제는 모든 내부 데이터 처리(오디오 생성)를 백그라운드에서 먼저 끝마친 후, 
+    # 눈에 보이는 UI를 "단어 박스 ➡️ 버튼 ➡️ 하단 표"의 정순서로 차곡차곡 위에서부터 아래로 한 번에 찍어냅니다.
+    # =================================================================================
     
-    st.markdown("<hr style='margin-top: 0px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+    audio_datas = []
     
-    # 💡 [배치 비율 대대적 수정] 버튼들을 HTML 하나로 묶었으므로, 널찍한 한 공간에 좌측 밀착으로 배치합니다.
-    col_caption, col_buttons = st.columns([0.65, 0.35])
-    
-    with col_caption:
-        st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
-        
-    btn_placeholder = col_buttons.empty()
+    # 1. 렌더링 전 오디오 데이터 및 단어 정보 사전 준비 (블로킹)
+    if st.session_state.is_continuous_playing or (0 <= target_idx < len(filtered_df)):
+        if target_idx < len(filtered_df):
+            selected_num = filtered_df.iloc[target_idx]['번호']
+            selected_word = filtered_df.iloc[target_idx]['캄보디아어']
+            selected_pron = filtered_df.iloc[target_idx]['발음']
+            selected_kor = filtered_df.iloc[target_idx]['한국어']
+            selected_eng = filtered_df.iloc[target_idx]['영어']
 
+            if voice_options:
+                audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
+                for err in error_msgs:
+                    st.error(err)
+
+            # 2. 가장 최상단: 단어 정보 박스 출력 (순차적 렌더링 시작)
+            num_str = f"[{selected_num}] " if selected_num else ""
+            pron_str = f"{selected_pron} " if selected_pron else ""
+            box_padding = "6px 14px"
+            kor_html = f"<span style='color: #20c997; font-size: 15pt; font-weight: bold;'>{selected_kor}</span>" if selected_kor else ""
+            eng_html = f"<span style='color: #fd7e14; font-size: 15pt; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
+            colored_mean = " ".join(filter(None, [kor_html, eng_html]))
+
+            html_combined_display = f"""<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
+                <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;">
+                    <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
+                </div>
+                <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
+                    <div style="line-height: 1.5; padding-top: 1px;">
+                        <span style="color: #3b82f6; font-size: 15pt; font-weight: bold;">{pron_str}</span> {colored_mean}
+                    </div>
+                </div>
+            </div>"""
+            st.markdown(html_combined_display, unsafe_allow_html=True)
+
+            # 3. 중간 영역: 구분선, 캡션, 그리고 오디오 버튼 출력
+            st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+            col_caption, col_buttons = st.columns([0.65, 0.35])
+            
+            with col_caption:
+                st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
+                
+            with col_buttons:
+                # 중간에 비는 공간 없이 순서대로 바로 렌더링됩니다.
+                play_sequential_audio(audio_datas, is_continuous=st.session_state.is_continuous_playing)
+    else:
+        # 단어장 끝 도달 시 기본 UI 렌더링
+        st.session_state.is_continuous_playing = False
+        st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+        st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
+
+    # 4. 가장 하단: 데이터프레임(표) 출력
+    # 위에 있는 버튼과 텍스트 박스들이 자리를 모두 잡은 뒤, 마지막에 표를 그리기 때문에 화면이 절대 튀지 않습니다!
     display_df = filtered_df.drop(columns=['한국어', '영어']).copy()
     
     def highlight_playing_row(row):
@@ -471,58 +520,6 @@ if processed_df is not None:
         selection_mode="single-row",
         key="word_table"
     )
-
-    audio_datas = [] 
-
-    if st.session_state.is_continuous_playing or (0 <= target_idx < len(filtered_df)):
-        if target_idx < len(filtered_df):
-            selected_num = filtered_df.iloc[target_idx]['번호']
-            selected_word = filtered_df.iloc[target_idx]['캄보디아어']
-            selected_pron = filtered_df.iloc[target_idx]['발음']
-            selected_kor = filtered_df.iloc[target_idx]['한국어']
-            selected_eng = filtered_df.iloc[target_idx]['영어']
-            
-            with player_container:
-                num_str = f"[{selected_num}] " if selected_num else ""
-                pron_str = f"{selected_pron} " if selected_pron else ""
-                
-                box_padding = "6px 14px"
-                
-                kor_html = f"<span style='color: #20c997; font-size: 15pt; font-weight: bold;'>{selected_kor}</span>" if selected_kor else ""
-                eng_html = f"<span style='color: #fd7e14; font-size: 15pt; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
-                colored_mean = " ".join(filter(None, [kor_html, eng_html]))
-
-                html_combined_display = f"""<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
-        <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;">
-            <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
-        </div>
-        <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
-            <div style="line-height: 1.5; padding-top: 1px;">
-                <span style="color: #3b82f6; font-size: 15pt; font-weight: bold;">{pron_str}</span> {colored_mean}
-            </div>
-        </div>
-    </div>"""
-                
-                st.markdown(html_combined_display, unsafe_allow_html=True)
-
-                if voice_options:
-                    # 💡 [테이블 튐 현상 완벽 해결] 로딩 애니메이션(st.spinner)이 화면을 쪼개어 그리면서 
-                    # 버튼이 순간적으로 사라지던 문제를 원천 차단했습니다.
-                    audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
-
-                    for err in error_msgs:
-                        st.error(err)
-
-                # 💡 [반복 재생 취소] 각 문장을 1번씩만 재생하도록 유지
-                if audio_datas:
-                    audio_datas = audio_datas * 1
-
-            # 💡 [디자인 통합] 두 버튼이 하나로 묶여서 안내문구 바로 옆 좌측으로 바짝 정렬되어 출력됩니다.
-            with btn_placeholder:
-                play_sequential_audio(audio_datas, is_continuous=st.session_state.is_continuous_playing)
-                
-        else:
-            st.session_state.is_continuous_playing = False
 
 # 💡 [보이지 않는 자동 스위치 로직]
 if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
