@@ -212,7 +212,7 @@ def generate_multiple_audios(khmer_text, selected_options, edge_rate, gtts_slow)
             try:
                 from gtts import gTTS
                 tts = gTTS(text=khmer_text, lang='km', slow=gtts_slow)
-                fp = io.IO()
+                fp = io.BytesIO()  # 💡 팩트 수정: io.IO() ➔ io.BytesIO() 로 올바르게 정정
                 tts.write_to_fp(fp)
                 audio_results.append(fp.getvalue())
             except Exception as e:
