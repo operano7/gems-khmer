@@ -27,10 +27,10 @@ body, .stApp {
     font-family: 'Noto Sans Khmer', sans-serif;
 }
 
-/* 선택된 텍스트 영역 커스텀 */
+/* 선택된 텍스트 영역 커스텀: 💡 폰트 크기 20pt -> 15pt 로 변경 */
 .khmer-custom-font {
     font-family: 'Noto Sans Khmer', sans-serif !important;
-    font-size: 20pt !important;
+    font-size: 15pt !important;
     font-weight: 700 !important;
 }
 
@@ -42,6 +42,15 @@ div[role="radiogroup"] {
 /* 체크박스 텍스트(Edge 남성/여성) 강제 한 줄 표시 (줄바꿈 방지) */
 div[data-testid="stCheckbox"] p {
     white-space: nowrap !important;
+}
+
+/* 💡 추가: Streamlit 기본 알림 박스(st.info, st.warning 등)의 상하좌우 여백을 대폭 줄여 초슬림화 */
+div[data-testid="stAlert"] {
+    padding: 8px 14px !important;
+}
+div[data-testid="stAlert"] p {
+    margin-bottom: 0px !important;
+    font-size: 14px !important;
 }
 </style>
 
@@ -370,9 +379,9 @@ if processed_df is not None:
         with player_container:
             num_str = f"[{selected_num}] " if selected_num else ""
             
-            # 💡 [SyntaxError 완벽 해결] f-string (f""") 문법을 제거하고 .replace() 로 안전하게 변수를 주입했습니다.
+            # 💡 [공간 최적화] 내부 padding(1rem -> 8px 14px)과 margin-bottom(1rem -> 0px)을 줄여 초슬림하게 개조했습니다.
             html_word_display = """
-            <div style="padding: 1rem; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc; margin-bottom: 1rem;">
+            <div style="padding: 8px 14px; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc; margin-bottom: 0px;">
                 <span class="khmer-custom-font" style="color: #0f5132;">__NUM_STR____SELECTED_WORD__</span>
             </div>
             """.replace("__NUM_STR__", num_str).replace("__SELECTED_WORD__", selected_word)
