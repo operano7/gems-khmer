@@ -128,9 +128,10 @@ if not EXCEL_FILE:
     st.error("❌ 엑셀 파일이 없습니다.")
     st.stop()
 
-# 메모리 격리 파일 로드
+# 💡 [캐시 최적화] 엑셀 파일의 '마지막 수정 시간'을 추적하여, 
+# 시트 순서 변경 등 파일이 덮어씌워질 때마다 즉시 새로운 데이터를 메모리에 반영합니다.
 @st.cache_data
-def load_all_data(filepath):
+def load_all_data(filepath, last_modified):
     with open(filepath, "rb") as f:
         file_bytes = f.read()
     
@@ -145,7 +146,9 @@ def load_all_data(filepath):
     return sheet_names, sheets_dict
 
 try:
-    sheet_names, all_sheets = load_all_data(EXCEL_FILE)
+    # 엑셀 파일의 실제 수정 시간(타임스탬프)을 가져와 캐시 함수에 전달합니다.
+    file_modified_time = os.path.getmtime(EXCEL_FILE)
+    sheet_names, all_sheets = load_all_data(EXCEL_FILE, file_modified_time)
 except Exception as e:
     st.error(f"❌ 데이터 로드 중 오류: {e}")
     st.stop()
