@@ -139,7 +139,14 @@ except Exception as e:
     st.error(f"❌ 데이터 로드 중 오류: {e}")
     st.stop()
 
-selected_sheet = st.selectbox("📂 학습할 단어장 시트:", sheet_names)
+# 💡 [공간 최적화] 단어장 시트 선택과 검색어 입력을 한 줄(2개의 컬럼)에 나란히 배치했습니다.
+col_sheet_select, col_search_input = st.columns(2)
+
+with col_sheet_select:
+    selected_sheet = st.selectbox("📂 학습할 단어장 시트:", sheet_names)
+
+with col_search_input:
+    search_query = st.text_input("🔍 검색어 입력:", "")
 
 def process_sheet_data(df_raw):
     start_row = 0
@@ -312,8 +319,7 @@ def play_sequential_audio(audio_bytes_list):
     components.html(html_code, height=45)
 
 if processed_df is not None:
-    search_query = st.text_input("🔍 검색어 입력:", "")
-    
+    # 검색어 입력과 시트 선택은 상단에 이미 배치되었으므로 필터링 로직만 수행합니다.
     if search_query:
         filtered_df = processed_df[
             processed_df['번호'].str.contains(search_query, na=False) |
