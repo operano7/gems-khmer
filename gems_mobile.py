@@ -382,9 +382,9 @@ if processed_df is not None:
             # 💡 [여백 100% 완벽 제어] 아래의 숫자를 6px, 10px, 24px 등 원하시는 대로 수정하시면 즉시 확실하게 반응합니다!
             box_padding = "6px 14px"
             
-            # 한글/영문 색상을 HTML 태그로 변환 (다크/라이트 모드 모두 잘 보이는 안전한 색상 적용)
-            kor_html = f"<span style='color: #20c997; font-weight: bold;'>{selected_kor}</span>" if selected_kor else ""
-            eng_html = f"<span style='color: #fd7e14; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
+            # 💡 한글/영문 해석에도 13pt 폰트 사이즈를 일괄 적용했습니다.
+            kor_html = f"<span style='color: #20c997; font-size: 13pt; font-weight: bold;'>{selected_kor}</span>" if selected_kor else ""
+            eng_html = f"<span style='color: #fd7e14; font-size: 13pt; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
             colored_mean = " ".join(filter(None, [kor_html, eng_html]))
 
             # 💡 [마크다운 들여쓰기 버그 완벽 해결]
