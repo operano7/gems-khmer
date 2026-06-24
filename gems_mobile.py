@@ -3,18 +3,23 @@ import pandas as pd
 import io
 import os
 import asyncio
-import edge_tts  # 오미로님의 PC 코드와 동일한 무료 고품질 TTS
+import edge_tts
+import base64
+import streamlit.components.v1 as components
 
 # 1. 화면 설정
 st.set_page_config(page_title="GEMS Mobile Table", page_icon="🔊", layout="wide")
 st.title("🇰🇭 GEMS 모바일 크메르어 학습기")
 
-# 💡 [OpenAI 폐기 및 Edge TTS 도입]
-voice_option = st.radio(
-    "🗣️ 발음 목소리 선택:", 
-    ["Google (여성)", "Edge 남성 (Piseth)", "Edge 여성 (Sreymom)"], 
-    horizontal=True
+# 💡 [핵심 업그레이드 1: 다중 선택 UI (Multi-select)]
+voice_options = st.multiselect(
+    "🗣️ 발음 목소리 선택 (여러 개 선택 시 순차적으로 재생됩니다):", 
+    options=["Google (여성)", "Edge 남성 (Piseth)", "Edge 여성 (Sreymom)"],
+    default=["Google (여성)"] # 기본값
 )
+
+if not voice_options:
+    st.warning("⚠️ 재생할 목소리를 최소 1개 이상 선택해 주세요.")
 
 st.write("표에서 원하는 문장을 터치하면 발음이 재생됩니다.")
 
@@ -93,7 +98,6 @@ def process_sheet_data(df):
 
 processed_df = process_sheet_data(all_sheets[selected_sheet])
 
-# 💡 [Edge TTS 비동기 처리기] 스트림릿 서버에서 안전하게 작동하도록 래핑
 def get_edge_audio_sync(text, voice_model):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -110,25 +114,89 @@ def get_edge_audio_sync(text, voice_model):
     loop.close()
     return result
 
+# 💡 [핵심 업그레이드 2: 다중 오디오 생성 엔진]
 @st.cache_data(show_spinner=False)
-def generate_audio_bytes_final(khmer_text, v_option):
-    if "Edge" in v_option:
-        try:
-            # PC 코드와 동일한 캄보디아어 모델 지정
-            voice_model = "km-KH-PisethNeural" if "남성" in v_option else "km-KH-SreymomNeural"
-            audio_content = get_edge_audio_sync(khmer_text, voice_model)
-            return audio_content, None
-        except Exception as e:
-            return None, f"❌ Edge TTS 에러: {str(e)}"
-    else:
-        try:
-            from gtts import gTTS
-            tts = gTTS(text=khmer_text, lang='km')
-            fp = io.BytesIO()
-            tts.write_to_fp(fp)
-            return fp.getvalue(), None
-        except Exception as e:
-            return None, f"❌ Google TTS 에러: {str(e)}"
+def generate_multiple_audios(khmer_text, selected_options):
+    audio_results = []
+    error_messages = []
+    
+    for opt in selected_options:
+        if "Edge" in opt:
+            try:
+                voice_model = "km-KH-PisethNeural" if "남성" in opt else "km-KH-SreymomNeural"
+                audio_content = get_edge_audio_sync(khmer_text, voice_model)
+                audio_results.append(audio_content)
+            except Exception as e:
+                error_messages.append(f"Edge TTS ({opt}) 에러: {str(e)}")
+        else:
+            try:
+                from gtts import gTTS
+                tts = gTTS(text=khmer_text, lang='km')
+                fp = io.BytesIO()
+                tts.write_to_fp(fp)
+                audio_results.append(fp.getvalue())
+            except Exception as e:
+                error_messages.append(f"Google TTS 에러: {str(e)}")
+                
+    return audio_results, error_messages
+
+# 💡 [핵심 업그레이드 3: HTML/JS 기반 스마트 연속 재생기]
+def play_sequential_audio(audio_bytes_list):
+    if not audio_bytes_list:
+        return
+
+    # 오디오 데이터를 웹에서 읽을 수 있는 Base64 텍스트로 변환
+    b64_audios = []
+    for ab in audio_bytes_list:
+        b64 = base64.b64encode(ab).decode()
+        b64_audios.append(f"data:audio/mp3;base64,{b64}")
+
+    js_array = str(b64_audios).replace("'", '"')
+
+    # 자바스크립트를 활용해 1번이 끝나면 2번, 2번이 끝나면 3번을 재생하도록 지시
+    html_code = f"""
+    <div style="background-color: #f0f2f6; padding: 10px; border-radius: 10px;">
+        <audio id="sequentialPlayer" controls autoplay style="width: 100%; outline: none;"></audio>
+        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 14px; margin-top: 5px; color: #333;">
+            오디오 로딩 중...
+        </div>
+    </div>
+    <script>
+        var audios = {js_array};
+        var currentIdx = 0;
+        var player = document.getElementById("sequentialPlayer");
+        var status = document.getElementById("statusText");
+
+        function updateStatus() {{
+            status.innerText = "🔊 재생 중... (" + (currentIdx + 1) + " / " + audios.length + " 번째 목소리)";
+        }}
+
+        if(audios.length > 0) {{
+            player.src = audios[0];
+            updateStatus();
+            
+            // 스마트폰 환경에서 자동재생이 차단될 경우를 대비한 안전 코드
+            var playPromise = player.play();
+            if (playPromise !== undefined) {{
+                playPromise.catch(function(error) {{
+                    status.innerText = "⏸️ 스마트폰 보안 차단: 위 재생(▶) 버튼을 수동으로 눌러주세요.";
+                }});
+            }}
+
+            player.onended = function() {{
+                currentIdx++;
+                if(currentIdx < audios.length) {{
+                    player.src = audios[currentIdx];
+                    updateStatus();
+                    player.play();
+                }} else {{
+                    status.innerText = "✅ 모든 재생 완료 (다시 듣기를 원하시면 표를 다시 터치하세요)";
+                }}
+            }};
+        }}
+    </script>
+    """
+    components.html(html_code, height=100)
 
 if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
@@ -167,15 +235,17 @@ if processed_df is not None:
         
         st.markdown("---")
         num_str = f"[{selected_num}] " if selected_num else ""
-        st.success(f"🔊 현재 선택됨: **{num_str}{selected_word}**")
+        st.success(f"현재 선택됨: **{num_str}{selected_word}**")
         st.info(f"💡 [{selected_pron}] {selected_mean}")
 
-        with st.spinner("🎵 고품질 음성을 생성하는 중입니다..."):
-            audio_data, error_msg = generate_audio_bytes_final(selected_word, voice_option)
-        
-        if error_msg:
-            st.error(error_msg)
-        elif audio_data:
-            st.audio(audio_data, format="audio/mp3", autoplay=True)
+        if voice_options:
+            with st.spinner(f"🎵 {len(voice_options)}개의 고품질 음성을 준비 중입니다..."):
+                audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options)
+            
+            for err in error_msgs:
+                st.error(err)
+            
+            if audio_datas:
+                play_sequential_audio(audio_datas)
     else:
         st.info("💡 위 표에서 원하는 행을 손가락으로 터치하세요.")
