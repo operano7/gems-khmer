@@ -2,20 +2,19 @@ import streamlit as st
 import pandas as pd
 import io
 import os
-import requests
+import asyncio
+import edge_tts  # 오미로님의 PC 코드와 동일한 무료 고품질 TTS
 
 # 1. 화면 설정
 st.set_page_config(page_title="GEMS Mobile Table", page_icon="🔊", layout="wide")
 st.title("🇰🇭 GEMS 모바일 크메르어 학습기")
 
+# 💡 [OpenAI 폐기 및 Edge TTS 도입]
 voice_option = st.radio(
     "🗣️ 발음 목소리 선택:", 
-    ["Google (여성)", "OpenAI 남성 (Onyx)", "OpenAI 여성 (Nova)"], 
+    ["Google (여성)", "Edge 남성 (Piseth)", "Edge 여성 (Sreymom)"], 
     horizontal=True
 )
-
-# 💡 [입력창 전면 철거] 화면 입력 대신 스트림릿 서버에 등록된 보안 키만 끌어옵니다.
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
 
 st.write("표에서 원하는 문장을 터치하면 발음이 재생됩니다.")
 
@@ -94,34 +93,33 @@ def process_sheet_data(df):
 
 processed_df = process_sheet_data(all_sheets[selected_sheet])
 
+# 💡 [Edge TTS 비동기 처리기] 스트림릿 서버에서 안전하게 작동하도록 래핑
+def get_edge_audio_sync(text, voice_model):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    async def _generate():
+        communicate = edge_tts.Communicate(text, voice_model)
+        audio_data = b""
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
+        return audio_data
+        
+    result = loop.run_until_complete(_generate())
+    loop.close()
+    return result
+
 @st.cache_data(show_spinner=False)
-def generate_audio_bytes_final(khmer_text, v_option, api_key):
-    if "OpenAI" in v_option:
-        if not api_key:
-            return None, "⚠️ 스트림릿 서버 Secrets에 API Key가 등록되지 않았습니다."
+def generate_audio_bytes_final(khmer_text, v_option):
+    if "Edge" in v_option:
         try:
-            voice_model = "onyx" if "남성" in v_option else "nova"
-            
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": "tts-1",
-                "voice": voice_model,
-                "input": khmer_text,
-                "response_format": "mp3"
-            }
-            
-            response = requests.post("https://api.openai.com/v1/audio/speech", headers=headers, json=payload, timeout=15)
-            
-            if response.status_code == 200:
-                return response.content, None
-            else:
-                return None, f"❌ OpenAI 통신 에러 ({response.status_code}): {response.text}"
-                
+            # PC 코드와 동일한 캄보디아어 모델 지정
+            voice_model = "km-KH-PisethNeural" if "남성" in v_option else "km-KH-SreymomNeural"
+            audio_content = get_edge_audio_sync(khmer_text, voice_model)
+            return audio_content, None
         except Exception as e:
-            return None, f"❌ 시스템 에러: {str(e)}"
+            return None, f"❌ Edge TTS 에러: {str(e)}"
     else:
         try:
             from gtts import gTTS
@@ -172,13 +170,12 @@ if processed_df is not None:
         st.success(f"🔊 현재 선택됨: **{num_str}{selected_word}**")
         st.info(f"💡 [{selected_pron}] {selected_mean}")
 
-        with st.spinner("🎵 고품질 음성을 생성/불러오는 중입니다... (최초 1~3초 소요)"):
-            audio_data, error_msg = generate_audio_bytes_final(selected_word, voice_option, OPENAI_API_KEY)
+        with st.spinner("🎵 고품질 음성을 생성하는 중입니다..."):
+            audio_data, error_msg = generate_audio_bytes_final(selected_word, voice_option)
         
         if error_msg:
             st.error(error_msg)
         elif audio_data:
-            st.markdown("### 🔽 스마트폰 보안으로 자동 재생이 안 될 경우, 아래의 재생(▶) 버튼을 눌러주세요!")
             st.audio(audio_data, format="audio/mp3", autoplay=True)
     else:
         st.info("💡 위 표에서 원하는 행을 손가락으로 터치하세요.")
