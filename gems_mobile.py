@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
-from gtts import gTTS
 import io
 import os
+import requests  # OpenAI 통신용 가장 안정적인 직통 라이브러리
 
 # 1. 화면 설정
 st.set_page_config(page_title="GEMS Mobile Table", page_icon="🔊", layout="wide")
@@ -35,7 +35,6 @@ if not EXCEL_FILE:
     st.error("❌ 엑셀 파일이 없습니다.")
     st.stop()
 
-# 메모리 격리 로직 (엑셀 에러 원천 차단)
 @st.cache_data
 def load_all_data(filepath):
     with open(filepath, "rb") as f:
@@ -101,31 +100,40 @@ def process_sheet_data(df):
 
 processed_df = process_sheet_data(all_sheets[selected_sheet])
 
-# 💡 [핵심 복구 및 에러 추적 엔진]
-# 에러를 숨기지 않고 명확하게 반환하여 화면에 출력하도록 고도화했습니다.
+# 💡 [핵심 최적화: 캐시 강제 폭파 및 직통 통신망(REST API) 구축]
 @st.cache_data(show_spinner=False)
-def get_audio_bytes(khmer_text, v_option, api_key):
+def generate_audio_bytes_final(khmer_text, v_option, api_key):
     if "OpenAI" in v_option:
         if not api_key:
             return None, "⚠️ API Key가 입력되지 않았습니다."
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=api_key)
             voice_model = "onyx" if "남성" in v_option else "nova"
             
-            # 💡 꼼수를 버리고 팩트에 기반하여 당당하게 '크메르어 원문'을 던집니다.
-            response = client.audio.speech.create(
-                model="tts-1",
-                voice=voice_model,
-                input=khmer_text
-            )
-            return response.content, None
-        except ImportError:
-            return None, "❌ openai 라이브러리가 설치되지 않았습니다. 깃허브의 requirements.txt 파일에 'openai'를 추가해 주세요."
+            # openai 패키지 없이 직접 통신하여 침묵 에러를 원천 차단합니다.
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "tts-1",
+                "voice": voice_model,
+                "input": khmer_text,
+                "response_format": "mp3"
+            }
+            
+            # OpenAI 서버로 데이터 요청 (최대 15초 대기)
+            response = requests.post("https://api.openai.com/v1/audio/speech", headers=headers, json=payload, timeout=15)
+            
+            if response.status_code == 200:
+                return response.content, None
+            else:
+                return None, f"❌ OpenAI 통신 에러 ({response.status_code}): {response.text}"
+                
         except Exception as e:
-            return None, f"❌ OpenAI 통신 에러: {str(e)}"
+            return None, f"❌ 시스템 에러: {str(e)}"
     else:
         try:
+            from gtts import gTTS
             tts = gTTS(text=khmer_text, lang='km')
             fp = io.BytesIO()
             tts.write_to_fp(fp)
@@ -168,16 +176,19 @@ if processed_df is not None:
         selected_pron = filtered_df.iloc[selected_idx]['발음']
         selected_mean = filtered_df.iloc[selected_idx]['해석']
         
+        st.markdown("---")
         num_str = f"[{selected_num}] " if selected_num else ""
-        st.success(f"🔊 재생 중: {num_str}{selected_word}")
+        st.success(f"🔊 현재 선택됨: **{num_str}{selected_word}**")
         st.info(f"💡 [{selected_pron}] {selected_mean}")
 
-        # 에러 발생 시 숨기지 않고 st.error로 화면에 직관적으로 뿌려줍니다.
-        audio_data, error_msg = get_audio_bytes(selected_word, voice_option, OPENAI_API_KEY)
+        # 💡 로딩 상태를 명확히 보여주는 스피너 장착
+        with st.spinner("🎵 고품질 음성을 생성/불러오는 중입니다... (최초 1~3초 소요)"):
+            audio_data, error_msg = generate_audio_bytes_final(selected_word, voice_option, OPENAI_API_KEY)
         
         if error_msg:
             st.error(error_msg)
         elif audio_data:
+            st.markdown("### 🔽 스마트폰 보안으로 자동 재생이 안 될 경우, 아래의 재생(▶) 버튼을 눌러주세요!")
             st.audio(audio_data, format="audio/mp3", autoplay=True)
     else:
-        st.info("💡 표에서 원하는 행을 터치하세요.")
+        st.info("💡 위 표에서 원하는 행을 손가락으로 터치하세요.")
