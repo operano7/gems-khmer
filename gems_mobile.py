@@ -17,17 +17,19 @@ st.markdown("""
 /* 1. 얇은 폰트를 배제하고 '굵은 글씨(700)' 버전의 Noto Sans Khmer 폰트만 단독 임포트 */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@700&display=swap');
 
-/* 2. 스트림릿 최상위 루트 및 표(Canvas) 렌더링에 사용되는 기본 폰트를 굵은 크메르 폰트로 강제 덮어쓰기 */
+/* 2. 💡 [화면 잘림 버그 해결] 스트림릿 레이아웃을 파괴하던 과도한 CSS를 제거하고, 
+      표(Canvas)가 참조하는 가장 안전한 루트 폰트 변수만 정밀하게 덮어씁니다. */
 :root {
     --font: 'Noto Sans Khmer', sans-serif;
 }
 
-html, body, div, span, p, a, table, td, th, [class*="st-"], .stApp {
-    font-family: 'Noto Sans Khmer', sans-serif !important;
+body, .stApp {
+    font-family: 'Noto Sans Khmer', sans-serif;
 }
 
 /* 선택된 텍스트 영역 커스텀 */
 .khmer-custom-font {
+    font-family: 'Noto Sans Khmer', sans-serif !important;
     font-size: 14pt !important;
     font-weight: 700 !important;
 }
@@ -37,7 +39,7 @@ div[role="radiogroup"] {
     gap: 3rem !important; 
 }
 
-/* 💡 추가: 체크박스 텍스트(Edge 남성/여성) 강제 한 줄 표시 (줄바꿈 방지) */
+/* 체크박스 텍스트(Edge 남성/여성) 강제 한 줄 표시 (줄바꿈 방지) */
 div[data-testid="stCheckbox"] p {
     white-space: nowrap !important;
 }
@@ -237,4 +239,121 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [SyntaxError 완
+    # 💡 [SyntaxError 완벽 해결] 파이썬의 f-string (f""") 기능을 해제하고, .replace()를 사용해 안전하게 변수를 주입했습니다.
+    html_code = """
+    <div style="background-color: #f0f2f6; padding: 5px 10px; border-radius: 8px;">
+        <audio id="sequentialPlayer" controls autoplay style="width: 100%; height: 35px; outline: none;"></audio>
+        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 13px; color: #d9534f; font-weight: bold;"></div>
+    </div>
+    <script>
+        var audios = __JS_ARRAY__;
+        var currentIdx = 0;
+        var player = document.getElementById("sequentialPlayer");
+        var status = document.getElementById("statusText");
+
+        function updateStatus() {
+            status.innerText = "";
+        }
+
+        if(audios.length > 0) {
+            player.src = audios[0];
+            updateStatus();
+            
+            var playPromise = player.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(function(error) {
+                    status.style.marginTop = "5px";
+                    status.innerText = "⏸️ 스마트폰 보안 차단: 위 재생(▶) 버튼을 수동으로 눌러주세요.";
+                });
+            }
+
+            player.onended = function() {
+                currentIdx++;
+                if(currentIdx < audios.length) {
+                    player.src = audios[currentIdx];
+                    updateStatus();
+                    player.play();
+                } else {
+                    status.innerText = "";
+                }
+            };
+        }
+    </script>
+    """.replace("__JS_ARRAY__", js_array)
+    
+    components.html(html_code, height=60)
+
+if processed_df is not None:
+    search_query = st.text_input("🔍 검색어 입력:", "")
+    
+    if search_query:
+        filtered_df = processed_df[
+            processed_df['번호'].str.contains(search_query, na=False) |
+            processed_df['캄보디아어'].str.contains(search_query, na=False) | 
+            processed_df['발음'].str.contains(search_query, na=False) |
+            processed_df['해석'].str.contains(search_query, na=False)
+        ].reset_index(drop=True)
+    else:
+        filtered_df = processed_df.reset_index(drop=True)
+
+    # 💡 [핵심 UI 개선] 플레이어와 단어 정보가 표 아래로 밀리지 않도록 상단 고정 컨테이너 생성
+    player_container = st.container()
+    
+    # 여백을 제거한 커스텀 구분선
+    st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
+    st.caption(f"총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)")
+
+    # 💡 무력화되는 Pandas Styler를 삭제하고, 깔끔하게 원본 DataFrame을 렌더링합니다.
+    display_df = filtered_df.drop(columns=['한국어', '영어'])
+    
+    selection = st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row"
+    )
+
+    selected_rows = []
+    if hasattr(selection, "selection"):
+        selected_rows = selection.selection.rows
+    elif isinstance(selection, dict):
+        selected_rows = selection.get("selection", {}).get("rows", [])
+
+    # 선택 결과가 있으면 최상단 player_container에 UI를 출력합니다.
+    if selected_rows:
+        selected_idx = selected_rows[0]
+        selected_num = filtered_df.iloc[selected_idx]['번호']
+        selected_word = filtered_df.iloc[selected_idx]['캄보디아어']
+        selected_pron = filtered_df.iloc[selected_idx]['발음']
+        selected_kor = filtered_df.iloc[selected_idx]['한국어']
+        selected_eng = filtered_df.iloc[selected_idx]['영어']
+        
+        with player_container:
+            num_str = f"[{selected_num}] " if selected_num else ""
+            
+            # 선택된 영역의 폰트 속성 적용 HTML
+            st.markdown(f"""
+            <div style="padding: 1rem; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc; margin-bottom: 1rem;">
+                <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # 한글/영문 색상 분리
+            colored_mean_parts = []
+            if selected_kor: colored_mean_parts.append(f":green[{selected_kor}]")
+            if selected_eng: colored_mean_parts.append(f":orange[{selected_eng}]")
+            
+            colored_mean = " ".join(colored_mean_parts)
+            pron_str = f"{selected_pron} " if selected_pron else ""
+            st.info(f"💡 {pron_str}{colored_mean}")
+
+            if voice_options:
+                with st.spinner(f"🎵 선택하신 {len(voice_options)}개의 고품질 음성(배속: {final_speed_level_desc})을 동시 준비 중입니다..."):
+                    audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
+                
+                for err in error_msgs:
+                    st.error(err)
+                
+                if audio_datas:
+                    play_sequential_audio(audio_datas, final_speed_level_desc)
