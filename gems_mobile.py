@@ -11,25 +11,23 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="오미로 크메르어 학습기", page_icon="🔊", layout="wide")
 st.title("오미로 크메르어 학습기")
 
-# 💡 [크메르어 전용 커스텀 폰트 및 UI 간격 조절 CSS 주입]
+# 💡 [크메르어 전용 커스텀 폰트, 프리로딩 및 전역 CSS 강제 주입]
 st.markdown("""
 <style>
-/* 구글 웹 폰트(Noto Sans Khmer) 굵은 글씨(700) 임포트 */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;700&display=swap');
+/* 1. 얇은 폰트를 배제하고 '굵은 글씨(700)' 버전의 Noto Sans Khmer 폰트만 단독 임포트 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@700&display=swap');
 
-/* 💡 앱 전체 및 표(Dataframe) 내부 캔버스 렌더링에 폰트를 강제 적용하기 위한 루트 변수 덮어쓰기 */
+/* 2. 스트림릿 최상위 루트 및 표(Canvas) 렌더링에 사용되는 기본 폰트를 굵은 크메르 폰트로 강제 덮어쓰기 */
 :root {
-    --font: 'Khmer UI', 'Noto Sans Khmer', sans-serif;
-    --font-family: 'Khmer UI', 'Noto Sans Khmer', sans-serif;
+    --font: 'Noto Sans Khmer', sans-serif;
 }
 
-html, body, [class*="st-"], .stApp {
-    font-family: 'Khmer UI', 'Noto Sans Khmer', sans-serif !important;
+html, body, div, span, p, a, table, td, th, [class*="st-"], .stApp {
+    font-family: 'Noto Sans Khmer', sans-serif !important;
 }
 
-/* 크메르어 폰트 설정 (선택된 텍스트용) */
+/* 선택된 텍스트 영역 커스텀 */
 .khmer-custom-font {
-    font-family: 'Khmer UI', 'Noto Sans Khmer', sans-serif !important;
     font-size: 14pt !important;
     font-weight: 700 !important;
 }
@@ -39,6 +37,11 @@ div[role="radiogroup"] {
     gap: 3rem !important; 
 }
 </style>
+
+<!-- 3. 💡 폰트 프리로딩(Preloading) 핵: 표가 그려지기 전 브라우저가 굵은 폰트를 즉시 다운받도록 투명/숨김 텍스트 배치 -->
+<div style="font-family: 'Noto Sans Khmer'; font-weight: 700; position: absolute; width: 0; height: 0; overflow: hidden;">
+    Preload Noto Sans Khmer Bold
+</div>
 """, unsafe_allow_html=True)
 
 # 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
@@ -242,7 +245,6 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
         var status = document.getElementById("statusText");
 
         function updateStatus() {{
-            // 재생 중일 때 불필요한 텍스트를 완전히 숨겨서 극한의 슬림함을 유지합니다.
             status.innerText = "";
         }}
 
@@ -253,7 +255,6 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
             var playPromise = player.play();
             if (playPromise !== undefined) {{
                 playPromise.catch(function(error) {{
-                    // 모바일 자동재생 차단 시에만 경고 문구를 표시합니다.
                     status.style.marginTop = "5px";
                     status.innerText = "⏸️ 스마트폰 보안 차단: 위 재생(▶) 버튼을 수동으로 눌러주세요.";
                 }});
@@ -266,14 +267,12 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
                     updateStatus();
                     player.play();
                 }} else {{
-                    // 완료 시에도 문구 없이 깔끔하게 비웁니다.
                     status.innerText = "";
                 }}
             }};
         }}
     </script>
     """
-    # 💡 하단 텍스트가 사라졌으므로 iframe의 높이를 75에서 60으로 한층 더 줄였습니다.
     components.html(html_code, height=60)
 
 if processed_df is not None:
@@ -296,18 +295,11 @@ if processed_df is not None:
     st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
     st.caption(f"총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)")
 
-    # 화면에 표시되는 테이블에서는 '한국어', '영어' 컬럼을 숨기고 기존의 '해석' 뷰를 유지
+    # 💡 무력화되는 Pandas Styler를 삭제하고, 깔끔하게 원본 DataFrame을 렌더링합니다.
     display_df = filtered_df.drop(columns=['한국어', '영어'])
     
-    # 💡 [표 내부 폰트 굵기 강제 적용] Pandas Styler를 이용해 글씨체를 굵게(Bold) 설정
-    styled_df = display_df.style.set_properties(**{
-        'font-family': "'Khmer UI', 'Noto Sans Khmer', sans-serif",
-        'font-weight': 'bold',
-        'font-size': '12pt'
-    })
-
     selection = st.dataframe(
-        styled_df,
+        display_df,
         use_container_width=True,
         hide_index=True,
         on_select="rerun",
@@ -332,22 +324,19 @@ if processed_df is not None:
         with player_container:
             num_str = f"[{selected_num}] " if selected_num else ""
             
-            # 💡 기존 st.success 대신 커스텀 HTML 영역을 생성하여 크메르어 폰트 속성(Khmer UI, 13pt, Bold)을 적용
+            # 선택된 영역의 폰트 속성 적용 HTML
             st.markdown(f"""
             <div style="padding: 1rem; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc; margin-bottom: 1rem;">
                 <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
             </div>
             """, unsafe_allow_html=True)
 
-            # 한글/영문 색상 분리 (스트림릿 마크다운 기능 활용)
+            # 한글/영문 색상 분리
             colored_mean_parts = []
             if selected_kor: colored_mean_parts.append(f":green[{selected_kor}]")
             if selected_eng: colored_mean_parts.append(f":orange[{selected_eng}]")
             
-            # 💡 영문 앞의 구분자("/")를 제거하고 띄어쓰기로 연결합니다.
             colored_mean = " ".join(colored_mean_parts)
-            
-            # 💡 한글 발음 표기를 감싸고 있던 "[" 및 "]" 를 제거했습니다.
             pron_str = f"{selected_pron} " if selected_pron else ""
             st.info(f"💡 {pron_str}{colored_mean}")
 
