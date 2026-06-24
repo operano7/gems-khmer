@@ -270,7 +270,8 @@ def play_sequential_audio(audio_bytes_list):
         var playBtn = document.getElementById("playBtn");
 
         function updateStatus() {
-            playBtn.innerText = "🔊 재생 중... (" + (currentIdx + 1) + "/" + audios.length + ")";
+            // 💡 "재생 중... (1/1)" 문구를 깔끔하게 "재생중"으로 압축했습니다.
+            playBtn.innerText = "🔊 재생중";
             playBtn.style.backgroundColor = "#0f5132"; // 진녹색으로 변경
         }
 
