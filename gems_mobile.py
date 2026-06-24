@@ -24,8 +24,8 @@ st.markdown("""
 
 # 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
 st.markdown("🗣️ **음성 종류를 설정하세요:**")
-# 컬럼 비율을 [0.6, 1.1, 1.1, 3.2] 수준으로 극한으로 좁혀 왼쪽으로 밀착시켰습니다.
-col_v1, col_v2, col_v3, _ = st.columns([0.6, 1.1, 1.1, 3.2])
+# 컬럼 비율을 [0.5, 0.9, 0.9, 3.7] 수준으로 극한으로 좁혀 왼쪽으로 밀착시켰습니다.
+col_v1, col_v2, col_v3, _ = st.columns([0.5, 0.9, 0.9, 3.7])
 
 with col_v1:
     use_google = st.checkbox("Google (여성)", value=True)
@@ -312,9 +312,13 @@ if processed_df is not None:
             colored_mean_parts = []
             if selected_kor: colored_mean_parts.append(f":green[{selected_kor}]")
             if selected_eng: colored_mean_parts.append(f":orange[{selected_eng}]")
-            colored_mean = " / ".join(colored_mean_parts)
             
-            st.info(f"💡 [{selected_pron}] {colored_mean}")
+            # 💡 영문 앞의 구분자("/")를 제거하고 띄어쓰기로 연결합니다.
+            colored_mean = " ".join(colored_mean_parts)
+            
+            # 💡 한글 발음 표기를 감싸고 있던 "[" 및 "]" 를 제거했습니다.
+            pron_str = f"{selected_pron} " if selected_pron else ""
+            st.info(f"💡 {pron_str}{colored_mean}")
 
             if voice_options:
                 with st.spinner(f"🎵 선택하신 {len(voice_options)}개의 고품질 음성(배속: {final_speed_level_desc})을 동시 준비 중입니다..."):
