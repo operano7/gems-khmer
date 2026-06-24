@@ -30,7 +30,7 @@ body, .stApp {
 /* 선택된 텍스트 영역 커스텀 */
 .khmer-custom-font {
     font-family: 'Noto Sans Khmer', sans-serif !important;
-    font-size: 14pt !important;
+    font-size: 15pt !important;
     font-weight: 700 !important;
 }
 
