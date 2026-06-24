@@ -32,19 +32,7 @@ def load_data():
 df = load_data()
 if df is None: st.error("파일 없음"); st.stop()
 
-# 오디오 생성 엔진 (캐시 적용)
-@st.cache_data(show_spinner=False)
-def get_audio_bytes(text):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    communicate = edge_tts.Communicate(text, "km-KH-PisethNeural")
-    audio_data = b""
-    loop.run_until_complete(asyncio.gather(*[
-        asyncio.create_task(communicate.stream())
-    ]))
-    return loop.run_until_complete(edge_tts.Communicate(text, "km-KH-PisethNeural").save(None))
-
-# 💡 개선된 통합 플레이어
+# 💡 개선된 통합 플레이어 (초기 원복 버전)
 def render_player(text, is_continuous):
     # 실제 오디오 생성
     audio_bytes = asyncio.run(edge_tts.Communicate(text, "km-KH-PisethNeural").save(None))
@@ -78,7 +66,7 @@ if st.session_state.current_play_idx < len(df):
     st.write(f"현재: {text}")
     render_player(text, st.session_state.is_continuous)
     
-    # 자동 넘김용 버튼 (CSS로 숨김 처리 예정)
+    # 자동 넘김용 버튼
     if st.button("▶️ 다음 항목으로"):
         st.session_state.current_play_idx = (st.session_state.current_play_idx + 1) % len(df)
         st.rerun()
