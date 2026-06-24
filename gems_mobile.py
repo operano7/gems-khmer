@@ -11,13 +11,19 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="오미로 크메르어 학습기", page_icon="🔊", layout="wide")
 st.title("오미로 크메르어 학습기")
 
-# 💡 [크메르어 전용 커스텀 폰트 CSS 주입]
+# 💡 [크메르어 전용 커스텀 폰트 및 UI 간격 조절 CSS 주입]
 st.markdown("""
 <style>
+/* 크메르어 폰트 설정 */
 .khmer-custom-font {
     font-family: 'Khmer UI', sans-serif !important;
     font-size: 13pt !important;
     font-weight: bold !important;
+}
+
+/* 속도 조절 라디오 버튼 가로 간격(gap) 넓히기 */
+div[role="radiogroup"] {
+    gap: 3rem !important; 
 }
 </style>
 """, unsafe_allow_html=True)
