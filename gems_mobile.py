@@ -468,10 +468,10 @@ if processed_df is not None:
                     for err in error_msgs:
                         st.error(err)
 
-                # 💡 [반복 재생 일괄 적용]
-                # 사용자가 '재생' 버튼을 누르든 '연속' 버튼을 누르든 항상 2번씩 반복되도록 일괄 적용합니다. (선교사님 요청사항)
+                # 💡 [반복 재생 취소] 
+                # 각 문장을 1번씩만 재생하도록 코드를 원복했습니다.
                 if audio_datas:
-                    audio_datas = audio_datas * 2
+                    audio_datas = audio_datas * 1
 
             # 💡 [안내문구 우측 버튼 삽입 로직]
             with btn_cont_placeholder:
