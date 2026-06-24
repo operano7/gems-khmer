@@ -12,7 +12,7 @@ st.set_page_config(page_title="GEMS Mobile 캄보디아어 학습기", page_icon
 st.title("🇰🇭 GEMS 모바일 캄보디아어 학습기 (공통 배속 지원)")
 
 # 💡 [TTS 선택 UI: 다중 선택 가능한 가로형 체크박스]
-st.markdown("🗣️ **발음 목소리 선택:** (여러 개를 체크하면 바통을 넘기듯 순차적으로 재생됩니다)")
+st.markdown("🗣️ **음성 TTS 종류를 설정하세요:** (여러 개를 체크하면 바통을 넘기듯 순차적으로 재생됩니다)")
 col_v1, col_v2, col_v3, _ = st.columns([1.1, 1.6, 1.6, 2.5])
 
 with col_v1:
