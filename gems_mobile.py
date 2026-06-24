@@ -35,12 +35,14 @@ if not voice_options:
 st.markdown("---")
 
 # 💡 [속도 조절 UI: TTS 선택과 디자인을 통일한 가로형 라디오 버튼]
-# 버튼과 복잡한 세션 메모리(Session State)를 폐기하고 가장 직관적인 UI로 변경했습니다.
+# 라디오 버튼의 기본 라벨을 숨기고, TTS 선택 UI처럼 독립된 텍스트(주석) 형태로 분리하여 통일했습니다.
+st.markdown("🐢 **전 TTS 공통 재생 속도를 설정하세요:** (모든 엔진에 공통 적용됩니다)")
 speed_choice = st.radio(
-    "🐢 **전 TTS 공통 재생 속도를 설정하세요:** (모든 엔진에 공통 적용됩니다)",
+    "속도 선택",
     options=["아주 느리게 (0.6x)", "조금 느리게 (0.8x)", "보통 속도 (1.0x)"],
     index=2, # 기본값: 보통 속도
-    horizontal=True
+    horizontal=True,
+    label_visibility="collapsed"
 )
 
 # 선택된 속도에 따른 엔진 파라미터 매핑
