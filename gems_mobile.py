@@ -8,8 +8,8 @@ import base64
 import streamlit.components.v1 as components
 
 # 1. 화면 설정
-st.set_page_config(page_title="오미로 크메르어 학습기", page_icon="🔊", layout="wide")
-st.title("오미로 크메르어 학습기")
+st.set_page_config(page_title="크메르어 학습기", page_icon="🎧", layout="wide")
+st.title("🎧 크메르어 학습기")
 
 # 💡 [크메르어 전용 커스텀 폰트, 프리로딩 및 전역 CSS 강제 주입]
 st.markdown("""
