@@ -11,9 +11,21 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="오미로 크메르어 학습기", page_icon="🔊", layout="wide")
 st.title("오미로 크메르어 학습기")
 
-# 💡 [TTS 선택 UI: 다중 선택 가능한 가로형 체크박스]
+# 💡 [크메르어 전용 커스텀 폰트 CSS 주입]
+st.markdown("""
+<style>
+.khmer-custom-font {
+    font-family: 'Khmer UI', sans-serif !important;
+    font-size: 13pt !important;
+    font-weight: bold !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
 st.markdown("🗣️ **음성 종류를 설정하세요:**")
-col_v1, col_v2, col_v3, _ = st.columns([1.1, 1.6, 1.6, 2.5])
+# 컬럼 비율을 [0.6, 1.1, 1.1, 3.2] 수준으로 극한으로 좁혀 왼쪽으로 밀착시켰습니다.
+col_v1, col_v2, col_v3, _ = st.columns([0.6, 1.1, 1.1, 3.2])
 
 with col_v1:
     use_google = st.checkbox("Google (여성)", value=True)
@@ -288,7 +300,13 @@ if processed_df is not None:
         
         with player_container:
             num_str = f"[{selected_num}] " if selected_num else ""
-            st.success(f"**{num_str}{selected_word}**")
+            
+            # 💡 기존 st.success 대신 커스텀 HTML 영역을 생성하여 크메르어 폰트 속성(Khmer UI, 13pt, Bold)을 적용
+            st.markdown(f"""
+            <div style="padding: 1rem; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc; margin-bottom: 1rem;">
+                <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
+            </div>
+            """, unsafe_allow_html=True)
 
             # 한글/영문 색상 분리 (스트림릿 마크다운 기능 활용)
             colored_mean_parts = []
