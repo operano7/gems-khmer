@@ -252,13 +252,14 @@ def play_sequential_audio(audio_bytes_list):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [공간/디자인 혁신] 불필요한 배경 박스를 지우고, 우측 정렬된 깔끔한 단일 버튼 형태로 개조했습니다.
+    # 💡 [위치 겹침 해결] playBtn 스타일에 margin-right: 65px; 를 추가하여
+    # 스트림릿 표의 우측 상단 UI 아이콘(돋보기, 다운로드 등)과 겹치지 않게 좌측으로 밀어냈습니다.
     html_code = """
     <div id="playerBox" style="display: flex; justify-content: flex-end; align-items: center; width: 100%; cursor: pointer; user-select: none;">
         <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
         
-        <!-- 오른쪽: 깔끔하고 명확한 둥근 재생 버튼 하나만 표시 -->
-        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 14px; font-weight: bold; color: white; background-color: #198754; padding: 8px 16px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: all 0.2s; white-space: nowrap;">
+        <!-- 오른쪽: 스트림릿 UI 겹침 방지를 위해 마진(margin-right: 65px) 추가 -->
+        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 14px; font-weight: bold; color: white; background-color: #198754; padding: 8px 16px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: all 0.2s; white-space: nowrap; margin-right: 65px; margin-bottom: 5px;">
             ▶️ 재생
         </div>
     </div>
@@ -307,7 +308,7 @@ def play_sequential_audio(audio_bytes_list):
     """.replace("__JS_ARRAY__", js_array)
     
     # 컴포넌트 높이를 버튼 크기에 딱 맞추어 낭비되는 세로 여백을 원천 차단
-    components.html(html_code, height=40)
+    components.html(html_code, height=45)
 
 if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
