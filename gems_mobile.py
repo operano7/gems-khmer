@@ -393,9 +393,8 @@ if processed_df is not None:
     <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;">
         <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
     </div>
-    <!-- 2. 발음 및 해석 박스 (기존 st.info 완전 대체) -->
+    <!-- 2. 발음 및 해석 박스 (기존 st.info 완전 대체, 💡아이콘 제거 완료) -->
     <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
-        <span>💡</span>
         <div style="line-height: 1.5; padding-top: 1px;">
             <span style="color: #3b82f6; font-size: 13pt; font-weight: bold;">{pron_str}</span> {colored_mean}
         </div>
