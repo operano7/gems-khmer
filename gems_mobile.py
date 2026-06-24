@@ -270,15 +270,15 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
     
     # 💡 [기능 추가] 연속 재생 모드일 경우 버튼 텍스트와 색상을 변경
     btn_text = "🔊 연속 재생중" if is_continuous else "🔊 재생중"
-    btn_color = "#084298" if is_continuous else "#0f5132" # 연속재생은 짙은 파란색
+    btn_color = "#198754" if is_continuous else "#198754" # 재생중은 둘 다 초록색
     
-    # 💡 [완벽한 버튼 배치] 버튼이 표 상단의 안전한 구역에 배치되었으므로 화면과 충돌하는 margin-right 속성을 제거하고 width를 100%로 설정했습니다.
+    # 💡 [높이 동일화 & 폭 최소화] width: max-content와 height: 38px를 적용하여 네이티브 버튼과 완벽하게 똑같이 렌더링합니다.
     html_code = f"""
-    <div id="playerBox" style="display: flex; justify-content: center; align-items: center; width: 100%; cursor: pointer; user-select: none;">
+    <div id="playerBox" style="display: flex; justify-content: flex-start; align-items: flex-start; width: max-content; cursor: pointer; user-select: none;">
         <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
         
-        <!-- 버튼 크기와 텍스트 형태를 Streamlit 버튼과 완벽하게 동일하게 렌더링 -->
-        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 14px; font-weight: bold; color: white; background-color: #198754; width: 100%; padding: 6px 0; text-align: center; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); transition: all 0.2s; white-space: nowrap; box-sizing: border-box;">
+        <!-- 버튼 크기와 텍스트 형태를 Streamlit 네이티브 버튼과 완벽하게 동일하게 렌더링 (높이 38px, 최소폭) -->
+        <div id="playBtn" style="font-family: inherit; font-size: 15px; font-weight: bold; color: white; background-color: #0d6efd; padding: 0 16px; height: 38px; display: inline-flex; justify-content: center; align-items: center; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); transition: all 0.2s; white-space: nowrap; box-sizing: border-box;">
             ▶️ 재생
         </div>
     </div>
@@ -324,7 +324,6 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
                         playBtn.innerText = "⏳ 단어 준비중...";
                         playBtn.style.backgroundColor = "#6c757d";
                     }} else {{
-                        // 💡 "다시 듣기" 대신 텍스트와 아이콘을 통일
                         playBtn.innerText = "▶️ 재생"; 
                         playBtn.style.backgroundColor = "#0d6efd"; // 파란색 (완료)
                     }}
@@ -334,7 +333,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
     </script>
     """
     
-    # 컴포넌트 높이를 스트림릿 버튼(40px내외) 크기에 딱 맞춤
+    # 컴포넌트 높이를 스트림릿 버튼(38px) 크기에 딱 맞춰 여백 최소화
     components.html(html_code, height=42)
 
 if processed_df is not None:
@@ -355,8 +354,10 @@ if processed_df is not None:
     # 여백을 제거한 커스텀 구분선
     st.markdown("<hr style='margin-top: 0px; margin-bottom: 10px;'>", unsafe_allow_html=True)
     
-    # 💡 [레이아웃 위치 변경] 안내 문구, '연속' 버튼, '재생' 버튼을 표 바로 위쪽(동일 선상)으로 완전히 옮겼습니다.
-    col_caption, col_btn_cont, col_btn_play = st.columns([0.6, 0.2, 0.2])
+    # 💡 [레이아웃 위치 변경 및 겹침 차단] 
+    # 안내 문구, '연속' 버튼, '재생' 버튼을 나란히 배치하되 우측에 스페이서(col_spacer 0.15)를 할당하여
+    # 표(Dataframe) 우측 상단의 툴바(다운로드 아이콘 등)와 절대로 겹치지 않게 좌측으로 안전하게 밀어냈습니다.
+    col_caption, col_btn_cont, col_btn_play, col_spacer = st.columns([0.55, 0.15, 0.15, 0.15])
     
     with col_caption:
         # 버튼과 수평(높이)이 맞도록 padding-top을 살짝 추가
@@ -451,8 +452,8 @@ if processed_df is not None:
 
             # 💡 [안내문구 우측 버튼 삽입 로직]
             with btn_cont_placeholder:
-                # 💡 아이콘 통일: ⏭️ 연속, ⏹️ 중지
-                if st.button("⏹️ 중지" if st.session_state.is_continuous_playing else "⏭️ 연속", use_container_width=True):
+                # 💡 폭 최소화를 위해 use_container_width=False 적용
+                if st.button("⏹️ 중지" if st.session_state.is_continuous_playing else "⏭️ 연속", use_container_width=False):
                     st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
                     st.rerun()
 
@@ -465,7 +466,12 @@ if processed_df is not None:
                 # 연속 모드일 경우, 스트림릿 내장 st.audio(autoplay=True)를 순차적으로 백그라운드 렌더링
                 elif st.session_state.is_continuous_playing:
                     with btn_play_placeholder:
-                        st.markdown("<div style='text-align: center; font-weight: bold; color: #084298; padding-top: 6px; font-size: 14px;'>⏭️ 연속재생중</div>", unsafe_allow_html=True)
+                        # 💡 연속재생중 텍스트 렌더링 (재생버튼과 완벽하게 동일한 높이 38px, 최소폭 유지)
+                        st.markdown("""
+                        <div style='display: inline-flex; justify-content: center; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background-color: #198754; color: white; font-size: 15px; font-weight: bold; white-space: nowrap;'>
+                            🔊 연속재생중
+                        </div>
+                        """, unsafe_allow_html=True)
                         
                     # 연속 생성된 오디오들을 순서대로 플레이
                     for ad in audio_datas:
