@@ -46,7 +46,7 @@ div[data-testid="stCheckbox"] p {
 
 /* 💡 추가: Streamlit 기본 알림 박스(st.info, st.warning 등)의 상하좌우 여백을 대폭 줄여 초슬림화 */
 div[data-testid="stAlert"] {
-    padding: 24px 14px !important;
+    padding: 8px 14px !important;
 }
 div[data-testid="stAlert"] p {
     margin-bottom: 0px !important;
