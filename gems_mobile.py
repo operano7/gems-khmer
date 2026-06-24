@@ -368,6 +368,32 @@ if processed_df is not None:
         with player_container:
             num_str = f"[{selected_num}] " if selected_num else ""
             
-            # 선택된 영역의 폰트 속성 적용 HTML
-            st.markdown(f"""
-            <div style="padding: 1rem; border-radius: 0.5rem; background-color: #d1e7dd; border: 1
+            # 💡 [SyntaxError 완벽 해결] f-string (f""") 문법을 제거하고 .replace() 로 안전하게 변수를 주입했습니다.
+            html_word_display = """
+            <div style="padding: 1rem; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc; margin-bottom: 1rem;">
+                <span class="khmer-custom-font" style="color: #0f5132;">__NUM_STR____SELECTED_WORD__</span>
+            </div>
+            """.replace("__NUM_STR__", num_str).replace("__SELECTED_WORD__", selected_word)
+            
+            st.markdown(html_word_display, unsafe_allow_html=True)
+
+            # 한글/영문 색상 분리
+            colored_mean_parts = []
+            if selected_kor: colored_mean_parts.append(f":green[{selected_kor}]")
+            if selected_eng: colored_mean_parts.append(f":orange[{selected_eng}]")
+            
+            colored_mean = " ".join(colored_mean_parts)
+            pron_str = f"{selected_pron} " if selected_pron else ""
+            st.info(f"💡 {pron_str}{colored_mean}")
+
+            if voice_options:
+                with st.spinner(f"🎵 선택하신 {len(voice_options)}개의 고품질 음성(배속: {final_speed_level_desc})을 동시 준비 중입니다..."):
+                    audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
+                
+                for err in error_msgs:
+                    st.error(err)
+
+    # 💡 [핵심] 오디오 플레이어는 상단 컨테이너가 아닌, '안내 문구와 같은 줄(우측 컬럼)'에 렌더링합니다.
+    if audio_datas:
+        with player_placeholder:
+            play_sequential_audio(audio_datas)
