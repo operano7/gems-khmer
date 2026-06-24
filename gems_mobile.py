@@ -42,7 +42,6 @@ def get_audio_bytes(text):
     loop.run_until_complete(asyncio.gather(*[
         asyncio.create_task(communicate.stream())
     ]))
-    # 간소화된 생성 로직 (환경별 최적화)
     return loop.run_until_complete(edge_tts.Communicate(text, "km-KH-PisethNeural").save(None))
 
 # 💡 개선된 통합 플레이어
