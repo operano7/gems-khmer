@@ -54,11 +54,13 @@ div[data-testid="stCheckbox"] p {
 </div>
 """, unsafe_allow_html=True)
 
-# 💡 [상태 관리] 연속 재생을 위한 Session State 초기화
+# 💡 [상태 관리] 연속 재생 및 행 선택 초기화
 if "is_continuous_playing" not in st.session_state:
     st.session_state.is_continuous_playing = False
 if "current_play_idx" not in st.session_state:
     st.session_state.current_play_idx = 0
+if "last_clicked_row" not in st.session_state:
+    st.session_state.last_clicked_row = None # 터치 강제 롤백 방지용 상태 추가
 
 # 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
 st.markdown("🗣️ **음성 종류를 설정하세요:**")
@@ -268,16 +270,16 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
 
     js_array = str(b64_audios).replace("'", '"')
     
-    # 💡 [기능 추가] 연속 재생 모드일 경우 버튼 텍스트와 색상을 변경
+    # 연속 재생 모드일 경우 버튼 텍스트와 색상을 변경
     btn_text = "🔊 연속 재생중" if is_continuous else "🔊 재생중"
     btn_color = "#198754" if is_continuous else "#198754" # 재생중은 둘 다 초록색
     
-    # 💡 [높이 동일화 & 폭 최소화] width: max-content와 height: 38px를 적용하여 네이티브 버튼과 완벽하게 똑같이 렌더링합니다.
+    # 💡 [자바스크립트 기반 무결점 넘김 로직]
+    # 오디오 재생이 완전히 끝났을 때만, 파이썬에 숨겨진 'AUTO_NEXT_BTN_XYZ' 버튼을 눌러 다음 문장을 가져옵니다.
     html_code = f"""
     <div id="playerBox" style="display: flex; justify-content: flex-start; align-items: flex-start; width: max-content; cursor: pointer; user-select: none;">
         <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
         
-        <!-- 버튼 크기와 텍스트 형태를 Streamlit 네이티브 버튼과 완벽하게 동일하게 렌더링 (높이 38px, 최소폭) -->
         <div id="playBtn" style="font-family: inherit; font-size: 15px; font-weight: bold; color: white; background-color: #0d6efd; padding: 0 16px; height: 38px; display: inline-flex; justify-content: center; align-items: center; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); transition: all 0.2s; white-space: nowrap; box-sizing: border-box;">
             ▶️ 재생
         </div>
@@ -320,10 +322,19 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
                     player.play();
                 }} else {{
                     if (isContinuous) {{
-                        // 연속 재생일 때는 완료 메시지 없이 백그라운드 파이썬으로 처리를 넘김
-                        playBtn.innerText = "⏳ 단어 준비중...";
+                        playBtn.innerText = "⏳ 다음 단어...";
                         playBtn.style.backgroundColor = "#6c757d";
+                        
+                        // 💡 오디오 재생이 2번 반복까지 완벽히 끝나면, 부모 창에 있는 숨겨진 넘김 버튼을 찾아 자동으로 누릅니다!
+                        var buttons = window.parent.document.querySelectorAll('button');
+                        for(var i=0; i<buttons.length; i++) {{
+                            if(buttons[i].innerText.trim() === 'AUTO_NEXT_BTN_XYZ') {{
+                                buttons[i].click();
+                                break;
+                            }}
+                        }}
                     }} else {{
+                        // 단일 재생은 여기서 깔끔하게 종료됩니다.
                         playBtn.innerText = "▶️ 재생"; 
                         playBtn.style.backgroundColor = "#0d6efd"; // 파란색 (완료)
                     }}
@@ -354,20 +365,17 @@ if processed_df is not None:
     # 여백을 제거한 커스텀 구분선
     st.markdown("<hr style='margin-top: 0px; margin-bottom: 10px;'>", unsafe_allow_html=True)
     
-    # 💡 [레이아웃 위치 변경 및 겹침 차단] 
-    # 안내 문구, '연속' 버튼, '재생' 버튼을 나란히 배치하되 우측에 스페이서(col_spacer 0.15)를 할당하여
-    # 표(Dataframe) 우측 상단의 툴바(다운로드 아이콘 등)와 절대로 겹치지 않게 좌측으로 안전하게 밀어냈습니다.
+    # 💡 안내 문구, '연속' 버튼, '재생' 버튼을 나란히 배치하되 우측에 스페이서(col_spacer 0.15) 할당
     col_caption, col_btn_cont, col_btn_play, col_spacer = st.columns([0.55, 0.15, 0.15, 0.15])
     
     with col_caption:
-        # 버튼과 수평(높이)이 맞도록 padding-top을 살짝 추가
         st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
         
-    # 버튼들이 들어갈 공간 확보 (나중에 선택된 후 이곳에 그려짐)
+    # 버튼들이 들어갈 공간 확보
     btn_cont_placeholder = col_btn_cont.empty()
     btn_play_placeholder = col_btn_play.empty()
 
-    # 무력화되는 Pandas Styler를 삭제하고, 깔끔하게 원본 DataFrame을 렌더링합니다.
+    # 원본 DataFrame 렌더링
     display_df = filtered_df.drop(columns=['한국어', '영어'])
     
     selection = st.dataframe(
@@ -384,25 +392,25 @@ if processed_df is not None:
     elif isinstance(selection, dict):
         selected_rows = selection.get("selection", {}).get("rows", [])
 
-    # 💡 [연속 재생 로직 컨트롤]
-    # 사용자가 표에서 새 항목을 터치하면 연속재생 모드 중지 및 해당 인덱스로 초기화
+    # 💡 [단어 고착 버그 완벽 해결]
+    # 사용자가 화면의 표에서 '직접' 새로운 행을 터치했을 때만 인덱스를 초기화하도록 분기 처리했습니다!
     if selected_rows:
-        if st.session_state.current_play_idx != selected_rows[0]:
+        current_selection = selected_rows[0]
+        if current_selection != st.session_state.last_clicked_row:
+            # 표의 선택 사항이 이전에 클릭했던 것과 다를 때 = 사용자가 직접 터치함!
+            st.session_state.last_clicked_row = current_selection
             st.session_state.is_continuous_playing = False
-            st.session_state.current_play_idx = selected_rows[0]
+            st.session_state.current_play_idx = current_selection
             
-    # 아무것도 선택되지 않았을 때는 0번 인덱스 대기
     elif not st.session_state.is_continuous_playing:
         st.session_state.current_play_idx = 0
 
-    # 현재 처리할 데이터 인덱스 확보
     target_idx = st.session_state.current_play_idx
     
-    audio_datas = [] # 💡 안전장치: 에러 방지를 위한 변수 초기화
+    audio_datas = [] 
 
     # 선택된 행이 있거나, 연속 재생 중일 때 상단 컨테이너에 단어 정보를 출력
     if selected_rows or st.session_state.is_continuous_playing:
-        # 데이터 유효성 검사
         if target_idx < len(filtered_df):
             selected_num = filtered_df.iloc[target_idx]['번호']
             selected_word = filtered_df.iloc[target_idx]['캄보디아어']
@@ -411,25 +419,19 @@ if processed_df is not None:
             selected_eng = filtered_df.iloc[target_idx]['영어']
             
             with player_container:
-                # 💡 [상단 UI 전용 렌더링 영역] 여기서는 단어 텍스트 박스만 그립니다.
                 num_str = f"[{selected_num}] " if selected_num else ""
                 pron_str = f"{selected_pron} " if selected_pron else ""
                 
-                # 💡 [여백 100% 완벽 제어] 아래의 숫자를 6px, 10px, 24px 등 원하시는 대로 수정하시면 즉시 확실하게 반응합니다!
                 box_padding = "6px 14px"
                 
-                # 💡 한글/영문 해석에도 15pt 폰트 사이즈를 일괄 적용했습니다.
                 kor_html = f"<span style='color: #20c997; font-size: 15pt; font-weight: bold;'>{selected_kor}</span>" if selected_kor else ""
                 eng_html = f"<span style='color: #fd7e14; font-size: 15pt; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
                 colored_mean = " ".join(filter(None, [kor_html, eng_html]))
 
-                # 💡 [마크다운 들여쓰기 버그 완벽 해결]
                 html_combined_display = f"""<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
-        <!-- 1. 크메르어 원문 박스 -->
         <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;">
             <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
         </div>
-        <!-- 2. 발음 및 해석 박스 (기존 st.info 완전 대체, 💡아이콘 제거 완료) -->
         <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
             <div style="line-height: 1.5; padding-top: 1px;">
                 <span style="color: #3b82f6; font-size: 15pt; font-weight: bold;">{pron_str}</span> {colored_mean}
@@ -450,52 +452,49 @@ if processed_df is not None:
                     for err in error_msgs:
                         st.error(err)
 
-                # 💡 [반복 학습 최적화] 한 단어/문장을 확실히 입에 붙일 수 있도록, 
-                # 생성된 음성 리스트를 메모리 상에서 2배로 늘려 자동으로 2번씩 반복 재생되게 합니다.
+                # 💡 [재생 모드별 반복 분기 처리 완벽 적용]
                 if audio_datas:
-                    audio_datas = audio_datas * 2
+                    if st.session_state.is_continuous_playing:
+                        # 1. 연속 재생 모드: 확실한 섀도잉 학습을 위해 한 문장을 '2번 반복'하여 메모리에 생성합니다.
+                        audio_datas = audio_datas * 2
+                    else:
+                        # 2. 일반 단일 모드: '1번만' 깔끔하게 생성하고 재생을 마칩니다.
+                        audio_datas = audio_datas * 1
 
             # 💡 [안내문구 우측 버튼 삽입 로직]
             with btn_cont_placeholder:
-                # 💡 폭 최소화를 위해 use_container_width=False 적용
+                # 폭 최소화를 위해 use_container_width=False 적용
                 if st.button("⏹️ 중지" if st.session_state.is_continuous_playing else "⏭️ 연속", use_container_width=False):
                     st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
                     st.rerun()
 
             if audio_datas:
-                # 단일 모드일 경우 기존의 커스텀 HTML 플레이어를 버튼 위치에 그림
-                if not st.session_state.is_continuous_playing:
-                    with btn_play_placeholder:
-                        play_sequential_audio(audio_datas, is_continuous=False)
+                # 💡 단일, 연속 모드 상관없이 모두 정밀한 커스텀 자바스크립트가 제어합니다!
+                with btn_play_placeholder:
+                    play_sequential_audio(audio_datas, is_continuous=st.session_state.is_continuous_playing)
                 
-                # 연속 모드일 경우, 스트림릿 내장 st.audio(autoplay=True)를 순차적으로 백그라운드 렌더링
-                elif st.session_state.is_continuous_playing:
-                    with btn_play_placeholder:
-                        # 💡 연속재생중 텍스트 렌더링 (재생버튼과 완벽하게 동일한 높이 38px, 최소폭 유지)
-                        st.markdown("""
-                        <div style='display: inline-flex; justify-content: center; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background-color: #198754; color: white; font-size: 15px; font-weight: bold; white-space: nowrap;'>
-                            🔊 연속재생중
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                    # 연속 생성된 오디오들을 순서대로 플레이
-                    for ad in audio_datas:
-                        # 화면에는 안 보이게 1픽셀짜리 audio 태그 렌더링 (꼼수)
-                        b64 = base64.b64encode(ad).decode()
-                        st.markdown(f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}"></audio>', unsafe_allow_html=True)
-                        
-                        # 다음 오디오가 겹쳐서 나오지 않도록 재생 길이만큼 파이썬 스레드 대기
-                        # 단어의 모든 옵션 재생이 완료될 때까지 대기하도록 로직을 수정했습니다.
-                        estimated_length = max(1.5, len(selected_word) * 0.15) 
-                        time.sleep(estimated_length)
-                    
-                    # 💡 단어 하나의 모든 음성 옵션 재생 완료 후 다음 단어로 인덱스 갱신
-                    if target_idx + 1 < len(filtered_df):
-                        st.session_state.current_play_idx += 1
-                        time.sleep(0.5) # 단어 사이 짧은 휴식
-                        st.rerun()
-                    else:
-                        st.success("🎉 단어장의 끝에 도달했습니다!")
-                        st.session_state.is_continuous_playing = False
         else:
             st.session_state.is_continuous_playing = False
+
+# 💡 [보이지 않는 자동 넘김 스위치 (최하단 배치)]
+# 브라우저(자바스크립트)가 2번 재생을 완전히 마치면, 몰래 이 버튼을 눌러 다음 문장으로 넘어갑니다.
+if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
+    if st.session_state.current_play_idx + 1 < len(filtered_df):
+        st.session_state.current_play_idx += 1
+        st.rerun()
+    else:
+        st.success("🎉 단어장의 끝에 도달했습니다!")
+        st.session_state.is_continuous_playing = False
+        st.rerun()
+
+# 💡 화면에서 지저분한 영문 스위치를 숨깁니다.
+components.html("""
+<script>
+var buttons = window.parent.document.querySelectorAll('button');
+buttons.forEach(function(btn) {
+    if(btn.innerText.trim() === 'AUTO_NEXT_BTN_XYZ') {
+        btn.style.display = 'none';
+    }
+});
+</script>
+""", height=0)
