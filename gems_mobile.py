@@ -371,8 +371,7 @@ if processed_df is not None:
             num_str = f"[{selected_num}] " if selected_num else ""
             pron_str = f"{selected_pron} " if selected_pron else ""
             
-            # 💡 [여백 100% 완벽 제어] 이제 고집스러운 st.info()를 버렸습니다!
-            # 아래의 숫자를 6px, 10px, 24px 등 원하시는 대로 수정하시면 즉시 확실하게 반응합니다!
+            # 💡 [여백 100% 완벽 제어] 아래의 숫자를 6px, 10px, 24px 등 원하시는 대로 수정하시면 즉시 확실하게 반응합니다!
             box_padding = "6px 14px"
             
             # 한글/영문 색상을 HTML 태그로 변환 (다크/라이트 모드 모두 잘 보이는 안전한 색상 적용)
@@ -380,23 +379,22 @@ if processed_df is not None:
             eng_html = f"<span style='color: #fd7e14; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
             colored_mean = " ".join(filter(None, [kor_html, eng_html]))
 
-            # 💡 Streamlit의 방해를 피하기 위해, 크메르어 박스와 해석 박스를 하나의 커스텀 HTML로 완전히 통합했습니다.
-            html_combined_display = f"""
-            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
-                <!-- 1. 크메르어 원문 박스 -->
-                <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;">
-                    <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
-                </div>
-                
-                <!-- 2. 발음 및 해석 박스 (기존 st.info 완전 대체) -->
-                <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
-                    <span>💡</span>
-                    <div style="line-height: 1.5; padding-top: 1px;">
-                        <span>{pron_str}</span> {colored_mean}
-                    </div>
-                </div>
-            </div>
-            """
+            # 💡 [마크다운 들여쓰기 버그 완벽 해결]
+            # HTML 코드가 화면에 글씨로 그대로 노출되던 원인은 파이썬 문자열 내부에 포함된 4칸 이상의 '들여쓰기(Space)' 때문이었습니다.
+            # 마크다운은 이를 코드 블록으로 착각하므로, 들여쓰기를 완전히 제거하여 정상적인 UI 컴포넌트로 화면에 그려지도록 수정했습니다.
+            html_combined_display = f"""<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
+    <!-- 1. 크메르어 원문 박스 -->
+    <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;">
+        <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
+    </div>
+    <!-- 2. 발음 및 해석 박스 (기존 st.info 완전 대체) -->
+    <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
+        <span>💡</span>
+        <div style="line-height: 1.5; padding-top: 1px;">
+            <span>{pron_str}</span> {colored_mean}
+        </div>
+    </div>
+</div>"""
             
             st.markdown(html_combined_display, unsafe_allow_html=True)
 
