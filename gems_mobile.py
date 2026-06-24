@@ -17,12 +17,26 @@ def load_data():
     try:
         # 엑셀 파일 로드
         df = pd.read_excel(EXCEL_FILE, engine='openpyxl')
-        cols = list(df.columns)
         
+        # 💡 [슈퍼 헤더 자동 격상 시스템]
+        # 엑셀 상단에 빈 줄이나 타이틀이 있어 진짜 제목줄이 데이터로 내려앉은 경우를 자동 치유합니다.
+        header_row_idx = None
+        for idx in range(min(5, len(df))):
+            row_values = df.iloc[idx].astype(str).tolist()
+            # 행 데이터 중에 '크메르어'나 '단어'라는 글자가 포함되어 있다면 그 행이 진짜 제목줄입니다.
+            if any('크메르어' in val or '단어' in val for val in row_values):
+                header_row_idx = idx
+                break
+        
+        # 진짜 제목줄을 찾았다면 컬럼명으로 격상시키고 그 상부 찌꺼기 줄들은 과감히 삭제합니다.
+        if header_row_idx is not None:
+            df.columns = [str(c).strip() for c in df.iloc[header_row_idx]]
+            df = df.iloc[header_row_idx + 1:].reset_index(drop=True)
+        
+        cols = list(df.columns)
         word_col, mean_col = None, None
         
-        # 💡 [키워드 기반 스마트 열 매핑 시스템]
-        # 열의 순서(번호 열의 유무)에 구애받지 않고, 컬럼명에 포함된 단어를 추적하여 정밀 매칭합니다.
+        # 키워드 기반 스마트 열 매핑
         for col in cols:
             col_str = str(col).strip()
             if any(x in col_str for x in ['크메르어', '단어', '원문', 'khmer', 'word']):
@@ -35,7 +49,7 @@ def load_data():
                 mean_col = col
                 break
         
-        # 키워드 매칭이 모두 실패했을 경우 적용되는 예외 복구 로직
+        # 키워드 매칭 실패 시 최종 보루
         if not word_col or not mean_col:
             if len(cols) >= 3 and (cols[0] == '번호' or 'no' in str(cols[0]).lower()):
                 word_col, mean_col = cols[1], cols[2]
@@ -43,9 +57,12 @@ def load_data():
                 word_col, mean_col = cols[0], cols[1]
         
         if word_col and mean_col:
-            # 내부 시스템 규격으로 컬럼명 통일 후 빈 데이터 제거
+            # 규격 통일 및 공백 제거
             sub_df = df[[word_col, mean_col]].dropna()
             sub_df.columns = ['단어', '의미']
+            
+            # 혹시라도 데이터 내부에 '크메르어' 등 헤더 문자열이 남아있다면 원천 청소
+            sub_df = sub_df[~sub_df['단어'].astype(str).str.contains('크메르어|단어|번호', na=False)]
             return sub_df
         else:
             st.error(f"❌ 엑셀에 유효한 데이터 열이 부족합니다. (확인된 열 목록: {cols})")
