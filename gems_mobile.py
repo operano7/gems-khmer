@@ -252,14 +252,13 @@ def play_sequential_audio(audio_bytes_list):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [위치 겹침 해결] playBtn 스타일에 margin-right: 65px; 를 추가하여
-    # 스트림릿 표의 우측 상단 UI 아이콘(돋보기, 다운로드 등)과 겹치지 않게 좌측으로 밀어냈습니다.
+    # 💡 [위치 겹침 완벽 해결] 스트림릿 표의 우측 상단 UI 아이콘을 피하기 위해 margin-right를 130px로 확대했습니다.
     html_code = """
     <div id="playerBox" style="display: flex; justify-content: flex-end; align-items: center; width: 100%; cursor: pointer; user-select: none;">
         <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
         
-        <!-- 오른쪽: 스트림릿 UI 겹침 방지를 위해 마진(margin-right: 65px) 추가 -->
-        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 14px; font-weight: bold; color: white; background-color: #198754; padding: 8px 16px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: all 0.2s; white-space: nowrap; margin-right: 65px; margin-bottom: 5px;">
+        <!-- 오른쪽: 스트림릿 UI 겹침 방지를 위해 마진(margin-right: 130px) 부여 -->
+        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 14px; font-weight: bold; color: white; background-color: #198754; padding: 8px 16px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: all 0.2s; white-space: nowrap; margin-right: 130px; margin-bottom: 5px;">
             ▶️ 재생
         </div>
     </div>
@@ -299,7 +298,8 @@ def play_sequential_audio(audio_bytes_list):
                     updateStatus();
                     player.play();
                 } else {
-                    playBtn.innerText = "🔄 다시 듣기";
+                    // 💡 "다시 듣기" 문구를 "재생"으로 변경했습니다.
+                    playBtn.innerText = "▶️ 재생"; 
                     playBtn.style.backgroundColor = "#0d6efd"; // 파란색 (완료)
                 }
             };
