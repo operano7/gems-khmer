@@ -29,10 +29,10 @@ body, .stApp {
     font-family: 'Noto Sans Khmer', sans-serif;
 }
 
-/* 선택된 텍스트 영역 커스텀: 💡 폰트 크기 20pt -> 15pt 로 변경 */
+/* 선택된 텍스트 영역 커스텀: 💡 폰트 크기 15pt -> 20pt 로 재변경 */
 .khmer-custom-font {
     font-family: 'Noto Sans Khmer', sans-serif !important;
-    font-size: 15pt !important;
+    font-size: 20pt !important;
     font-weight: 700 !important;
 }
 
@@ -382,9 +382,9 @@ if processed_df is not None:
             # 💡 [여백 100% 완벽 제어] 아래의 숫자를 6px, 10px, 24px 등 원하시는 대로 수정하시면 즉시 확실하게 반응합니다!
             box_padding = "6px 14px"
             
-            # 💡 한글/영문 해석에도 13pt 폰트 사이즈를 일괄 적용했습니다.
-            kor_html = f"<span style='color: #20c997; font-size: 13pt; font-weight: bold;'>{selected_kor}</span>" if selected_kor else ""
-            eng_html = f"<span style='color: #fd7e14; font-size: 13pt; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
+            # 💡 한글/영문 해석에도 15pt 폰트 사이즈를 일괄 적용했습니다.
+            kor_html = f"<span style='color: #20c997; font-size: 15pt; font-weight: bold;'>{selected_kor}</span>" if selected_kor else ""
+            eng_html = f"<span style='color: #fd7e14; font-size: 15pt; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
             colored_mean = " ".join(filter(None, [kor_html, eng_html]))
 
             # 💡 [마크다운 들여쓰기 버그 완벽 해결]
@@ -398,7 +398,7 @@ if processed_df is not None:
     <!-- 2. 발음 및 해석 박스 (기존 st.info 완전 대체, 💡아이콘 제거 완료) -->
     <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
         <div style="line-height: 1.5; padding-top: 1px;">
-            <span style="color: #3b82f6; font-size: 13pt; font-weight: bold;">{pron_str}</span> {colored_mean}
+            <span style="color: #3b82f6; font-size: 15pt; font-weight: bold;">{pron_str}</span> {colored_mean}
         </div>
     </div>
 </div>"""
