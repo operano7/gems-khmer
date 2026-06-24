@@ -9,7 +9,9 @@ import streamlit.components.v1 as components
 
 # 1. 화면 설정
 st.set_page_config(page_title="크메르어 학습기", page_icon="🎧", layout="wide")
-st.title("🎧 크메르어 학습기")
+
+# 💡 [크기 조정] st.title() 보다 한 단계 글씨가 작은 st.header()로 변경하여 상단 제목 크기를 약간 줄였습니다.
+st.header("🎧 크메르어 학습기")
 
 # 💡 [크메르어 전용 커스텀 폰트, 프리로딩 및 전역 CSS 강제 주입]
 st.markdown("""
