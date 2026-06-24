@@ -397,7 +397,7 @@ if processed_df is not None:
     <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
         <span>💡</span>
         <div style="line-height: 1.5; padding-top: 1px;">
-            <span style="color: #3b82f6; font-size: 13px;">{pron_str}</span> {colored_mean}
+            <span style="color: #3b82f6; font-size: 13pt; font-weight: bold;">{pron_str}</span> {colored_mean}
         </div>
     </div>
 </div>"""
