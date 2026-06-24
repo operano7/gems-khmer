@@ -39,9 +39,23 @@ def load_data(filepath):
 
 if EXCEL_FILE:
     processed_df = load_data(EXCEL_FILE)
-    # 데이터가 로드되면 간단히 번호/원문/발음/해석 구조로 가정
+    
+    # 데이터 처리 로직: 데이터가 비어있지 않은 행만 필터링
     df = processed_df.iloc[1:].dropna(how='all')
-    df.columns = ['번호', '원문', '발음', '한국어', '영어']
+    
+    # 💡 [보완] 열 개수가 5개가 아닐 경우를 대비해 동적으로 처리
+    required_cols = ['번호', '원문', '발음', '한국어', '영어']
+    if df.shape[1] >= len(required_cols):
+        # 5개 이상이면 앞의 5개만 사용
+        df = df.iloc[:, :len(required_cols)]
+        df.columns = required_cols
+    else:
+        # 5개 미만이면 부족한 만큼 빈 열 생성
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = ""
+        df = df[required_cols]
+        
     df = df.reset_index(drop=True)
 else:
     st.error("파일 없음")
@@ -57,8 +71,6 @@ def play_sequential_audio(audio_bytes, is_continuous):
         var player = document.getElementById("player");
         player.onended = function() {{
             if({str(is_continuous).lower()}) {{
-                var btn = window.parent.document.querySelector('button[kind="secondary"]');
-                // 자동 넘김 트리거 (streamlit 버튼)
                 var buttons = window.parent.document.querySelectorAll('button');
                 for(var i=0; i<buttons.length; i++) {{
                     if(buttons[i].innerText.includes('AUTO_NEXT')) {{ buttons[i].click(); }}
@@ -83,8 +95,7 @@ if col1.button("연속 재생 시작/정지"):
 # 실제 재생
 if st.session_state.current_play_idx < len(df):
     text = df.iloc[st.session_state.current_play_idx]['원문']
-    # 오디오 생성 로직 생략 (생성 후 bytes 변수에 담김)
-    # play_sequential_audio(audio_bytes, st.session_state.is_continuous)
+    # 오디오 생성 로직은 생략된 상태입니다.
 
 # 자동 넘김용 숨김 버튼
 if st.button("AUTO_NEXT", key="next"):
