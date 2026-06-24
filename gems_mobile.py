@@ -10,8 +10,7 @@ st.set_page_config(page_title="GEMS Mobile", page_icon="🔊", layout="centered"
 st.title("🇰🇭 GEMS 모바일 크메르어 학습기")
 st.write("단어 목록에서 항목을 선택하면 폰에서 발음이 자동 재생됩니다.")
 
-# 💡 [자동 확장자 추적 시스템]
-# 폴더 내에 .xlsx가 있으면 최우선으로 읽고, 없으면 .xlsm을 순차 탐색하여 에러를 원천 차단합니다.
+# 자동 확장자 추적 시스템
 EXCEL_FILE = None
 for ext in ['.xlsx', '.xlsm']:
     if os.path.exists(f"캄보디아어 공부{ext}"):
@@ -21,22 +20,22 @@ for ext in ['.xlsx', '.xlsm']:
 @st.cache_data
 def load_data():
     if not EXCEL_FILE:
-        st.error("❌ 서버 저장소에 '캄보디아어 공부.xlsx' 또는 '.xlsm' 파일이 존재하지 않습니다.")
+        st.error("❌ 서버 저장소에 '캄보디아어 공부' 엑셀 파일이 존재하지 않습니다.")
         return None
     try:
-        # 엑셀 파일 로드
+        # 엑셀 파일 로드 (헤더를 자동 지정하지 않고 기본 로드)
         df = pd.read_excel(EXCEL_FILE, engine='openpyxl')
         
-        # 💡 [슈퍼 헤더 자동 격상 시스템]
-        # 엑셀 상단에 빈 줄이나 타이틀이 있어 진짜 제목줄이 데이터 행으로 내려앉은 경우를 자동 치유합니다.
+        # 💡 [정밀 헤더 및 열 매핑 매스터 시스템]
+        # 엑셀 내에서 '크메르어'라는 단어가 포함된 진짜 제목줄 위치를 정확하게 찾습니다.
         header_row_idx = None
-        for idx in range(min(5, len(df))):
+        for idx in range(min(10, len(df))):
             row_values = df.iloc[idx].astype(str).tolist()
             if any('크메르어' in val or '단어' in val for val in row_values):
                 header_row_idx = idx
                 break
         
-        # 진짜 제목줄을 찾았다면 컬럼명으로 격상시키고 상부 데이터는 정리합니다.
+        # 진짜 제목줄을 찾았다면 해당 행을 컬럼명으로 선언하고 상부 데이터 절단
         if header_row_idx is not None:
             df.columns = [str(c).strip() for c in df.iloc[header_row_idx]]
             df = df.iloc[header_row_idx + 1:].reset_index(drop=True)
@@ -44,34 +43,36 @@ def load_data():
         cols = list(df.columns)
         word_col, mean_col = None, None
         
-        # 키워드 기반 스마트 열 매핑 (열 밀림 방지)
+        # 💡 정확한 엑셀 원문 매칭 (우선순위 철저 분리)
+        # 1) '크메르어' 혹은 '단어'가 들어간 열을 원문으로 매핑
         for col in cols:
-            col_str = str(col).strip()
-            if any(x in col_str for x in ['크메르어', '단어', '원문', 'khmer', 'word']):
+            if '크메르어' in str(col) or '단어' in str(col):
                 word_col = col
                 break
                 
+        # 2) 한글 및 영문 해석(뜻) 열 매핑
         for col in cols:
-            col_str = str(col).strip()
-            if any(x in col_str for x in ['뜻', '의미', '번역', '한국어', 'mean', 'korean']):
+            if any(x in str(col) for x in ['뜻', '의미', '해석', '한국어', '번역']):
                 mean_col = col
                 break
         
-        # 매칭 실패 시 최종 보루 로직
+        # 만약 키워드 매칭이 실패했을 경우 안전 장치
         if not word_col or not mean_col:
-            if len(cols) >= 3 and (cols[0] == '번호' or 'no' in str(cols[0]).lower()):
+            if len(cols) >= 3:
                 word_col, mean_col = cols[1], cols[2]
             elif len(cols) >= 2:
                 word_col, mean_col = cols[0], cols[1]
         
         if word_col and mean_col:
+            # 원문과 해석 데이터만 추출 후 결측치 제거
             sub_df = df[[word_col, mean_col]].dropna()
             sub_df.columns = ['단어', '의미']
-            # 제목줄 문자열이 데이터에 잔존해 있다면 청소
-            sub_df = sub_df[~sub_df['단어'].astype(str).str.contains('크메르어|단어|번호', na=False)]
+            
+            # 제목용 유령 데이터 청소
+            sub_df = sub_df[~sub_df['단어'].astype(str).str.contains('크메르어|단어|번호|헤더', na=False)]
             return sub_df
         else:
-            st.error(f"❌ 엑셀에 유효한 데이터 열이 부족합니다. (확인된 열 목록: {cols})")
+            st.error(f"❌ 유효한 열을 찾지 못했습니다. (현재 인식된 열: {cols})")
             return None
             
     except Exception as e:
@@ -81,7 +82,7 @@ def load_data():
 df = load_data()
 
 if df is not None:
-    # 3. 검색 및 필터링 기능 (모바일 자판 입력 최적화)
+    # 3. 검색 및 필터링 기능
     search_query = st.text_input("🔍 단어 또는 의미 검색:", "")
     if search_query:
         filtered_df = df[df['단어'].astype(str).str.contains(search_query, na=False) | 
@@ -91,11 +92,13 @@ if df is not None:
 
     st.write(f"총 {len(filtered_df)}개의 단어가 검색되었습니다.")
 
-    # 4. 모바일용 리스트 형식 UI 구현
+    # 4. 모바일용 리스트 형식 UI 구현 (포맷 엄격 고정)
     display_list = [f"[{i+1}] {row['단어']} : {row['의미']}" for i, row in filtered_df.iterrows()]
     
     if display_list:
         selected_item = st.radio("학습할 단어를 터치하세요:", display_list, index=0)
+        
+        # 선택된 단어 추출
         selected_word = selected_item.split("] ")[1].split(" : ")[0]
         st.success(f"현재 선택된 단어: {selected_word}")
 
