@@ -252,21 +252,33 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [SyntaxError 완벽 해결] 파이썬의 f-string (f""") 기능을 해제하고, .replace()를 사용해 안전하게 변수를 주입했습니다.
+    # 💡 [공간 최적화 완벽 해결] 기존의 크고 두꺼운 재생 플레이어를 완전히 없애고, 
+    # 클릭 가능한 얇은 '텍스트 상태 표시줄' 형태로 UI를 압축 개조했습니다.
     html_code = """
-    <div style="background-color: #f0f2f6; padding: 5px 10px; border-radius: 8px;">
-        <audio id="sequentialPlayer" controls autoplay style="width: 100%; height: 35px; outline: none;"></audio>
-        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 13px; color: #d9534f; font-weight: bold;"></div>
+    <div id="playerBox" style="background-color: #e2e3e5; padding: 6px 10px; border-radius: 6px; text-align: center; cursor: pointer; user-select: none;">
+        <!-- 기본 오디오 태그 숨김 (controls 속성 제거) -->
+        <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
+        <div id="statusText" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 13px; font-weight: bold; color: #41464b;">
+            🔊 재생 준비 중...
+        </div>
     </div>
     <script>
         var audios = __JS_ARRAY__;
         var currentIdx = 0;
         var player = document.getElementById("sequentialPlayer");
         var status = document.getElementById("statusText");
+        var box = document.getElementById("playerBox");
 
         function updateStatus() {
-            status.innerText = "";
+            status.style.color = "#0f5132"; // 진녹색
+            status.innerText = "🔊 음성 재생 중... (" + (currentIdx + 1) + "/" + audios.length + ")";
+            box.style.backgroundColor = "#d1e7dd"; // 연녹색 배경
         }
+
+        // 터치 시 강제로 재생 (스마트폰 보안 차단 해제용)
+        box.onclick = function() {
+            player.play();
+        };
 
         if(audios.length > 0) {
             player.src = audios[0];
@@ -275,8 +287,9 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
             var playPromise = player.play();
             if (playPromise !== undefined) {
                 playPromise.catch(function(error) {
-                    status.style.marginTop = "5px";
-                    status.innerText = "⏸️ 스마트폰 보안 차단: 위 재생(▶) 버튼을 수동으로 눌러주세요.";
+                    status.style.color = "#842029"; // 진빨강
+                    status.innerText = "⏸️ 모바일 보안 차단: [여기를 터치]하여 재생하세요";
+                    box.style.backgroundColor = "#f8d7da"; // 연빨강 배경
                 });
             }
 
@@ -287,14 +300,17 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
                     updateStatus();
                     player.play();
                 } else {
-                    status.innerText = "";
+                    status.style.color = "#41464b";
+                    status.innerText = "✅ 재생 완료 (다시 듣기를 원하시면 윗 표를 터치하세요)";
+                    box.style.backgroundColor = "#e2e3e5"; // 회색 배경 복구
                 }
             };
         }
     </script>
     """.replace("__JS_ARRAY__", js_array)
     
-    components.html(html_code, height=60)
+    # 💡 IFrame 컴포넌트의 높이를 60px에서 35px로 대폭 줄여 모바일 화면 낭비를 원천 차단했습니다.
+    components.html(html_code, height=35)
 
 if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
