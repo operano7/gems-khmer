@@ -11,18 +11,29 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="GEMS Mobile Table", page_icon="🔊", layout="wide")
 st.title("🇰🇭 GEMS 모바일 크메르어 학습기")
 
-# 💡 [핵심 업그레이드 1: 다중 선택 UI (Multi-select)]
-voice_options = st.multiselect(
-    "🗣️ 발음 목소리 선택 (여러 개 선택 시 순차적으로 재생됩니다):", 
-    options=["Google (여성)", "Edge 남성 (Piseth)", "Edge 여성 (Sreymom)"],
-    default=["Google (여성)"] # 기본값
-)
+# 💡 [UI 복원 및 업그레이드] 
+# 드롭다운을 폐기하고, 기존처럼 가로로 3등분하여 깔끔하게 배치된 다중 체크박스 도입
+st.markdown("🗣️ **발음 목소리 선택:** (여러 개를 체크하면 바통을 넘기듯 순차적으로 재생됩니다)")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    use_google = st.checkbox("Google (여성)", value=True)
+with col2:
+    use_edge_m = st.checkbox("Edge 남성 (Piseth)")
+with col3:
+    use_edge_f = st.checkbox("Edge 여성 (Sreymom)")
+
+voice_options = []
+if use_google: voice_options.append("Google (여성)")
+if use_edge_m: voice_options.append("Edge 남성 (Piseth)")
+if use_edge_f: voice_options.append("Edge 여성 (Sreymom)")
 
 if not voice_options:
-    st.warning("⚠️ 재생할 목소리를 최소 1개 이상 선택해 주세요.")
+    st.warning("⚠️ 재생할 목소리를 최소 1개 이상 체크해 주세요.")
 
 st.write("표에서 원하는 문장을 터치하면 발음이 재생됩니다.")
 
+# 엑셀 파일 탐색
 EXCEL_FILE = None
 for ext in ['.xlsm', '.xlsx']:
     if os.path.exists(f"캄보디아어 공부{ext}"):
@@ -33,6 +44,7 @@ if not EXCEL_FILE:
     st.error("❌ 엑셀 파일이 없습니다.")
     st.stop()
 
+# 메모리 격리 파일 로드 (BadZipFile 에러 원천 차단)
 @st.cache_data
 def load_all_data(filepath):
     with open(filepath, "rb") as f:
@@ -67,6 +79,7 @@ def process_sheet_data(df):
     df = df.iloc[start_row:].reset_index(drop=True)
     num_cols = df.shape[1]
     
+    # 4단 독립 표 포맷팅
     df['번호'] = df.iloc[:, 0].astype(str) if num_cols > 0 else ""
     df['원문'] = df.iloc[:, 1].astype(str) if num_cols > 1 else ""
     df['발음'] = df.iloc[:, 2].astype(str) if num_cols > 2 else ""
@@ -98,6 +111,7 @@ def process_sheet_data(df):
 
 processed_df = process_sheet_data(all_sheets[selected_sheet])
 
+# Edge TTS 비동기 처리 엔진
 def get_edge_audio_sync(text, voice_model):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -114,7 +128,7 @@ def get_edge_audio_sync(text, voice_model):
     loop.close()
     return result
 
-# 💡 [핵심 업그레이드 2: 다중 오디오 생성 엔진]
+# 다중 오디오 동시 생성 캐시 엔진
 @st.cache_data(show_spinner=False)
 def generate_multiple_audios(khmer_text, selected_options):
     audio_results = []
@@ -140,12 +154,11 @@ def generate_multiple_audios(khmer_text, selected_options):
                 
     return audio_results, error_messages
 
-# 💡 [핵심 업그레이드 3: HTML/JS 기반 스마트 연속 재생기]
+# HTML/JS 커스텀 순차 재생 플레이어
 def play_sequential_audio(audio_bytes_list):
     if not audio_bytes_list:
         return
 
-    # 오디오 데이터를 웹에서 읽을 수 있는 Base64 텍스트로 변환
     b64_audios = []
     for ab in audio_bytes_list:
         b64 = base64.b64encode(ab).decode()
@@ -153,7 +166,6 @@ def play_sequential_audio(audio_bytes_list):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 자바스크립트를 활용해 1번이 끝나면 2번, 2번이 끝나면 3번을 재생하도록 지시
     html_code = f"""
     <div style="background-color: #f0f2f6; padding: 10px; border-radius: 10px;">
         <audio id="sequentialPlayer" controls autoplay style="width: 100%; outline: none;"></audio>
@@ -175,7 +187,6 @@ def play_sequential_audio(audio_bytes_list):
             player.src = audios[0];
             updateStatus();
             
-            // 스마트폰 환경에서 자동재생이 차단될 경우를 대비한 안전 코드
             var playPromise = player.play();
             if (playPromise !== undefined) {{
                 playPromise.catch(function(error) {{
@@ -239,7 +250,7 @@ if processed_df is not None:
         st.info(f"💡 [{selected_pron}] {selected_mean}")
 
         if voice_options:
-            with st.spinner(f"🎵 {len(voice_options)}개의 고품질 음성을 준비 중입니다..."):
+            with st.spinner(f"🎵 선택하신 {len(voice_options)}개의 고품질 음성을 동시 준비 중입니다..."):
                 audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options)
             
             for err in error_msgs:
