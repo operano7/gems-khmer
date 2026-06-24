@@ -35,7 +35,7 @@ def load_data():
                 mean_col = col
                 break
         
-        # 키워드 매칭이 모두 실패했을 경우 적용되는 예외 복구 로직 (Fallback)
+        # 키워드 매칭이 모두 실패했을 경우 적용되는 예외 복구 로직
         if not word_col or not mean_col:
             if len(cols) >= 3 and (cols[0] == '번호' or 'no' in str(cols[0]).lower()):
                 word_col, mean_col = cols[1], cols[2]
