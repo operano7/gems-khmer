@@ -51,8 +51,8 @@ div[data-testid="stCheckbox"] p {
 
 # 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
 st.markdown("🗣️ **음성 종류를 설정하세요:**")
-# 컬럼 비율 조정: Edge TTS 텍스트가 넉넉히 한 줄에 들어가도록 2, 3번째 열 비율을 대폭 확장했습니다.
-col_v1, col_v2, col_v3, _ = st.columns([0.8, 1.5, 1.5, 2.2])
+# 컬럼 비율 조정: 두 번째 열의 폭을 줄여 'Edge 여성' 문구가 앞쪽으로 당겨지도록 조정했습니다. (1.5 -> 1.2)
+col_v1, col_v2, col_v3, _ = st.columns([0.8, 1.2, 1.2, 2.8])
 
 with col_v1:
     use_google = st.checkbox("Google (여성)", value=True)
@@ -217,7 +217,7 @@ def generate_multiple_audios(khmer_text, selected_options, edge_rate, gtts_slow)
             try:
                 from gtts import gTTS
                 tts = gTTS(text=khmer_text, lang='km', slow=gtts_slow)
-                fp = io.BytesIO()  # 💡 팩트 수정: io.IO() ➔ io.BytesIO() 로 올바르게 정정
+                fp = io.BytesIO()
                 tts.write_to_fp(fp)
                 audio_results.append(fp.getvalue())
             except Exception as e:
@@ -237,4 +237,41 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [핵심 UI 개선] 불필요한 '오디오 로딩 중...' 문
+    # 💡 [핵심 UI 개선] 불필요한 '오디오 로딩 중...' 문구를 삭제하고 텍스트 공간을 완전히 비웠습니다.
+    html_code = f"""
+    <div style="background-color: #f0f2f6; padding: 5px 10px; border-radius: 8px;">
+        <audio id="sequentialPlayer" controls autoplay style="width: 100%; height: 35px; outline: none;"></audio>
+        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 13px; color: #d9534f; font-weight: bold;"></div>
+    </div>
+    <script>
+        var audios = {js_array};
+        var currentIdx = 0;
+        var player = document.getElementById("sequentialPlayer");
+        var status = document.getElementById("statusText");
+
+        function updateStatus() {{
+            status.innerText = "";
+        }}
+
+        if(audios.length > 0) {{
+            player.src = audios[0];
+            updateStatus();
+            
+            var playPromise = player.play();
+            if (playPromise !== undefined) {{
+                playPromise.catch(function(error) {{
+                    status.style.marginTop = "5px";
+                    status.innerText = "⏸️ 스마트폰 보안 차단: 위 재생(▶) 버튼을 수동으로 눌러주세요.";
+                }});
+            }}
+
+            player.onended = function() {{
+                currentIdx++;
+                if(currentIdx < audios.length) {{
+                    player.src = audios[currentIdx];
+                    updateStatus();
+                    player.play();
+                }} else {{
+                    status.innerText = "";
+                }}
+            }};
