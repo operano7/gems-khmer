@@ -10,9 +10,9 @@ st.set_page_config(page_title="GEMS Mobile Table", page_icon="🔊", layout="wid
 st.title("🇰🇭 GEMS 모바일 크메르어 학습기")
 st.write("표에서 원하는 문장을 터치하면 발음이 재생됩니다.")
 
-# 💡 [안전장치 1] 용량이 비정상적으로 작은 유령 파일을 걸러내고, 진짜 파일만 찾습니다.
+# 파일 안전 탐색
 EXCEL_FILE = None
-for ext in ['.xlsm', '.xlsx']:  # 최근 작업하신 xlsm을 최우선으로 탐색
+for ext in ['.xlsm', '.xlsx']:
     filename = f"캄보디아어 공부{ext}"
     if os.path.exists(filename) and os.path.getsize(filename) > 500:
         EXCEL_FILE = filename
@@ -22,11 +22,9 @@ if not EXCEL_FILE:
     st.error("❌ 유효한 엑셀 파일(500바이트 이상)을 찾을 수 없습니다.")
     st.stop()
 
-# 💡 [안전장치 2] 에러를 일으킨 함수를 폐기하고, 이전의 안정적인 방식으로 모든 시트를 한 번에 캐시합니다.
 @st.cache_data
 def load_entire_workbook(filepath):
     try:
-        # sheet_name=None을 주면 엑셀 안의 모든 시트를 딕셔너리 형태로 한 방에 안전하게 가져옵니다.
         return pd.read_excel(filepath, sheet_name=None, header=None, engine='openpyxl')
     except Exception as e:
         return str(e)
@@ -35,13 +33,10 @@ all_sheets = load_entire_workbook(EXCEL_FILE)
 
 if isinstance(all_sheets, str):
     st.error(f"❌ 엑셀 파일 읽기 실패: {all_sheets}")
-    st.info("💡 팁: 스트림릿 우측 하단 [Manage app] ➔ [⋮] ➔ [Clear cache]를 눌러 서버 메모리를 초기화해 보세요.")
     st.stop()
 
-# 안정적으로 확보한 시트 이름들을 상단 메뉴에 배치
 selected_sheet = st.selectbox("📂 학습할 단어장 시트:", list(all_sheets.keys()))
 
-# 선택된 시트의 데이터를 3단 포맷으로 가공하는 엔진
 def process_sheet_data(df):
     start_row = 0
     for i in range(min(15, len(df))):
@@ -53,35 +48,40 @@ def process_sheet_data(df):
     df = df.iloc[start_row:].reset_index(drop=True)
     num_cols = df.shape[1]
     
+    # 💡 [요청 1&2 반영] 0번째(번호)부터 4번째(영어)까지만 명확히 잘라서 가져옵니다.
+    df['번호'] = df.iloc[:, 0].astype(str) if num_cols > 0 else ""
     df['원문'] = df.iloc[:, 1].astype(str) if num_cols > 1 else ""
     df['발음'] = df.iloc[:, 2].astype(str) if num_cols > 2 else ""
-    
-    def sweep_all_meanings(row):
-        meanings = []
-        for col_idx in range(3, num_cols):
-            val = str(row.values[col_idx]).strip()
-            if val and val.lower() not in ['nan', 'none', 'nat']:
-                meanings.append(val)
-        return " / ".join(meanings)
-        
-    df['해석'] = df.apply(sweep_all_meanings, axis=1) if num_cols > 3 else ""
+    df['한국어'] = df.iloc[:, 3].astype(str) if num_cols > 3 else ""
+    df['영어'] = df.iloc[:, 4].astype(str) if num_cols > 4 else ""
     
     def clean_text(text):
         t = str(text).strip()
-        return "" if t.lower() in ['nan', 'none', 'nat'] else t
+        if t.lower() in ['nan', 'none', 'nat', '']: return ""
+        if t.endswith('.0'): return t[:-2]  # 파이썬이 숫자를 1.0으로 읽는 현상 방지
+        return t
 
-    df['원문'] = df['원문'].apply(clean_text)
-    df['발음'] = df['발음'].apply(clean_text)
+    for c in ['번호', '원문', '발음', '한국어', '영어']:
+        df[c] = df[c].apply(clean_text)
     
     df = df[df['원문'] != '']
 
-    sub_df = df[['원문', '발음', '해석']].dropna()
-    sub_df.columns = ['크메르어', '발음', '한국어 해석']
+    # 💡 [요청 1 반영] 한국어와 영어까지만 깔끔하게 결합합니다.
+    def combine_meanings(row):
+        parts = []
+        if row['한국어']: parts.append(row['한국어'])
+        if row['영어']: parts.append(row['영어'])
+        return " / ".join(parts) if parts else ""
+        
+    df['해석'] = df.apply(combine_meanings, axis=1)
+
+    # 💡 [요청 2 반영] 번호 열을 맨 앞에 추가하여 4단 표로 구성합니다.
+    sub_df = df[['번호', '원문', '발음', '해석']]
+    sub_df.columns = ['번호', '크메르어', '발음', '해석']
     return sub_df
 
 processed_df = process_sheet_data(all_sheets[selected_sheet])
 
-# 💡 [핵심 최적화] 지연 시간 소멸을 위한 초고속 발음 재생 캐시 엔진
 @st.cache_data(show_spinner=False)
 def get_audio_bytes(text):
     tts = gTTS(text=text, lang='km')
@@ -93,16 +93,17 @@ if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
     if search_query:
         filtered_df = processed_df[
+            processed_df['번호'].str.contains(search_query, na=False) |
             processed_df['크메르어'].str.contains(search_query, na=False) | 
             processed_df['발음'].str.contains(search_query, na=False) |
-            processed_df['한국어 해석'].str.contains(search_query, na=False)
+            processed_df['해석'].str.contains(search_query, na=False)
         ].reset_index(drop=True)
     else:
         filtered_df = processed_df.reset_index(drop=True)
 
     st.caption(f"총 {len(filtered_df)}개의 항목")
 
-    # 3단 분리 엑셀 표 구현
+    # 4단 엑셀 표 UI
     selection = st.dataframe(
         filtered_df,
         use_container_width=True,
@@ -119,14 +120,17 @@ if processed_df is not None:
 
     if selected_rows:
         selected_idx = selected_rows[0]
+        selected_num = filtered_df.iloc[selected_idx]['번호']
         selected_word = filtered_df.iloc[selected_idx]['크메르어']
         selected_pron = filtered_df.iloc[selected_idx]['발음']
-        selected_mean = filtered_df.iloc[selected_idx]['한국어 해석']
+        selected_mean = filtered_df.iloc[selected_idx]['해석']
         
-        st.success(f"🔊 재생 중: {selected_word}")
+        # 하단 재생 정보창에도 번호 표기
+        num_str = f"[{selected_num}] " if selected_num else ""
+        st.success(f"🔊 재생 중: {num_str}{selected_word}")
         st.info(f"💡 [{selected_pron}] {selected_mean}")
 
-        # 캐시된 오디오 데이터를 즉각 호출하여 재생
+        # TTS는 순수 크메르어 문장만 읽도록 하여 발음 오염 방지
         audio_data = get_audio_bytes(selected_word)
         st.audio(audio_data, format="audio/mp3", autoplay=True)
     else:
