@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 
 # 1. 화면 설정
 st.set_page_config(page_title="오미로 크메르어 학습기", page_icon="🔊", layout="wide")
-st.title("🇰🇭 오미로 크메르어 학습기")
+st.title("오미로 크메르어 학습기")
 
 # 💡 [TTS 선택 UI: 다중 선택 가능한 가로형 체크박스]
 st.markdown("🗣️ **음성 TTS 종류를 설정하세요:**")
@@ -30,7 +30,8 @@ if use_edge_f: voice_options.append("Edge 여성 (Sreymom Neural)")
 if not voice_options:
     st.warning("⚠️ 재생할 목소리를 최소 1개 이상 체크해 주세요.")
 
-st.markdown("---")
+# 여백을 제거한 커스텀 구분선
+st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
 
 # 💡 [속도 조절 UI: TTS 선택과 디자인을 통일한 가로형 라디오 버튼]
 st.markdown("🐢 **전 TTS 공통 재생 속도를 설정하세요:**")
@@ -61,7 +62,8 @@ if use_google and final_speed_level_desc == "조금 느리게 (0.8x)":
 elif use_google and final_speed_level_desc == "아주 느리게 (0.6x)":
     st.caption("💡 [알림] Google TTS는 기술적 제약으로 '아주 느리게(0.6x)'를 지원하지 않아 이 단계에서는 0.5배속(slow 모드)으로 재생됩니다.")
 
-st.markdown("---")
+# 여백을 제거한 커스텀 구분선
+st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
 
 # 엑셀 파일 탐색
 EXCEL_FILE = None
@@ -120,7 +122,7 @@ def process_sheet_data(df):
         if t.lower() in ['nan', 'none', 'nat', '']: return ""
         if t.endswith('.0'): return t[:-2]
         return t
-
+        
     for c in ['번호', '원문', '발음', '한국어', '영어']:
         df[c] = df[c].apply(clean_text)
     
@@ -255,7 +257,8 @@ if processed_df is not None:
     # 💡 [핵심 UI 개선] 플레이어와 단어 정보가 표 아래로 밀리지 않도록 상단 고정 컨테이너 생성
     player_container = st.container()
     
-    st.markdown("---")
+    # 여백을 제거한 커스텀 구분선
+    st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
     st.caption(f"총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)")
 
     selection = st.dataframe(
@@ -294,7 +297,3 @@ if processed_df is not None:
                 
                 if audio_datas:
                     play_sequential_audio(audio_datas, final_speed_level_desc)
-    else:
-        # 아무것도 선택되지 않았을 때의 기본 안내 메시지
-        with player_container:
-            st.info("💡 아래 표에서 학습할 단어/문장의 왼쪽 끝 빈칸을 손가락으로 터치하세요.")
