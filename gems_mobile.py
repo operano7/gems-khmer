@@ -14,11 +14,15 @@ st.title("오미로 크메르어 학습기")
 # 💡 [크메르어 전용 커스텀 폰트 및 UI 간격 조절 CSS 주입]
 st.markdown("""
 <style>
+/* 구글 웹 폰트(Noto Sans Khmer) 굵은 글씨(700) 임포트: 모바일에서도 굵은 폰트를 강제하기 위함 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@700&display=swap');
+
 /* 크메르어 폰트 설정 */
 .khmer-custom-font {
-    font-family: 'Khmer UI', sans-serif !important;
-    font-size: 13pt !important;
-    font-weight: bold !important;
+    /* PC에서는 Khmer UI 우선, 모바일에서는 Noto Sans Khmer 적용 */
+    font-family: 'Khmer UI', 'Noto Sans Khmer', sans-serif !important;
+    font-size: 14pt !important;
+    font-weight: 700 !important;
 }
 
 /* 속도 조절 라디오 버튼 가로 간격(gap) 넓히기 */
@@ -196,7 +200,7 @@ def generate_multiple_audios(khmer_text, selected_options, edge_rate, gtts_slow)
             try:
                 from gtts import gTTS
                 tts = gTTS(text=khmer_text, lang='km', slow=gtts_slow)
-                fp = io.BytesIO()
+                fp = io.IO()
                 tts.write_to_fp(fp)
                 audio_results.append(fp.getvalue())
             except Exception as e:
