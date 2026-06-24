@@ -359,6 +359,30 @@ if processed_df is not None:
     else:
         filtered_df = processed_df.reset_index(drop=True)
 
+    # 💡 [표 선택 값 선행 동기화 (UI 움직임 구현)]
+    # 표(Dataframe)를 렌더링하기 '전'에 사용자의 선택 상태를 파악하여 target_idx를 먼저 확정합니다.
+    if "word_table" in st.session_state:
+        sel = st.session_state.word_table
+        sel_rows = []
+        if hasattr(sel, "selection"):
+            sel_rows = sel.selection.rows
+        elif isinstance(sel, dict):
+            sel_rows = sel.get("selection", {}).get("rows", [])
+            
+        if sel_rows:
+            current_selection = sel_rows[0]
+            # 사용자가 표에서 직접 '새로운 행'을 클릭한 경우에만 갱신 (고착화 방지)
+            if current_selection != st.session_state.last_clicked_row:
+                st.session_state.last_clicked_row = current_selection
+                st.session_state.is_continuous_playing = False
+                st.session_state.current_play_idx = current_selection
+        elif not st.session_state.is_continuous_playing:
+            # 선택이 풀렸고 연속 재생 중이 아니면 리셋
+            st.session_state.current_play_idx = 0
+            st.session_state.last_clicked_row = None
+
+    target_idx = st.session_state.current_play_idx
+
     # 💡 [핵심 UI 개선] 플레이어와 단어 정보가 표 아래로 밀리지 않도록 상단 고정 컨테이너 생성
     player_container = st.container()
     
@@ -375,42 +399,31 @@ if processed_df is not None:
     btn_cont_placeholder = col_btn_cont.empty()
     btn_play_placeholder = col_btn_play.empty()
 
-    # 원본 DataFrame 렌더링
-    display_df = filtered_df.drop(columns=['한국어', '영어'])
+    # 원본 DataFrame 렌더링 준비
+    display_df = filtered_df.drop(columns=['한국어', '영어']).copy()
     
+    # 💡 [문장 선택 UI 이동 효과 구현]
+    # Streamlit 표의 체크박스는 시스템상 강제 이동이 불가능하므로, 
+    # '상태' 열을 맨 앞에 동적으로 추가하여 현재 재생 위치를 화살표 텍스트로 명확히 표시합니다.
+    status_list = [""] * len(display_df)
+    if 0 <= target_idx < len(display_df):
+        status_list[target_idx] = "▶️ 재생중"
+    display_df.insert(0, '상태', status_list)
+    
+    # 렌더링 (key="word_table" 부여를 통해 선행 동기화 로직과 연결)
     selection = st.dataframe(
         display_df,
         use_container_width=True,
         hide_index=True,
         on_select="rerun",
-        selection_mode="single-row"
+        selection_mode="single-row",
+        key="word_table"
     )
 
-    selected_rows = []
-    if hasattr(selection, "selection"):
-        selected_rows = selection.selection.rows
-    elif isinstance(selection, dict):
-        selected_rows = selection.get("selection", {}).get("rows", [])
-
-    # 💡 [단어 고착 버그 완벽 해결]
-    # 사용자가 화면의 표에서 '직접' 새로운 행을 터치했을 때만 인덱스를 초기화하도록 분기 처리했습니다!
-    if selected_rows:
-        current_selection = selected_rows[0]
-        if current_selection != st.session_state.last_clicked_row:
-            # 표의 선택 사항이 이전에 클릭했던 것과 다를 때 = 사용자가 직접 터치함!
-            st.session_state.last_clicked_row = current_selection
-            st.session_state.is_continuous_playing = False
-            st.session_state.current_play_idx = current_selection
-            
-    elif not st.session_state.is_continuous_playing:
-        st.session_state.current_play_idx = 0
-
-    target_idx = st.session_state.current_play_idx
-    
     audio_datas = [] 
 
     # 선택된 행이 있거나, 연속 재생 중일 때 상단 컨테이너에 단어 정보를 출력
-    if selected_rows or st.session_state.is_continuous_playing:
+    if st.session_state.is_continuous_playing or (0 <= target_idx < len(filtered_df)):
         if target_idx < len(filtered_df):
             selected_num = filtered_df.iloc[target_idx]['번호']
             selected_word = filtered_df.iloc[target_idx]['캄보디아어']
@@ -452,14 +465,10 @@ if processed_df is not None:
                     for err in error_msgs:
                         st.error(err)
 
-                # 💡 [재생 모드별 반복 분기 처리 완벽 적용]
+                # 💡 [반복 재생 일괄 적용]
+                # 사용자가 '재생' 버튼을 누르든 '연속' 버튼을 누르든 항상 2번씩 반복되도록 일괄 적용합니다.
                 if audio_datas:
-                    if st.session_state.is_continuous_playing:
-                        # 1. 연속 재생 모드: 확실한 섀도잉 학습을 위해 한 문장을 '2번 반복'하여 메모리에 생성합니다.
-                        audio_datas = audio_datas * 2
-                    else:
-                        # 2. 일반 단일 모드: '1번만' 깔끔하게 생성하고 재생을 마칩니다.
-                        audio_datas = audio_datas * 1
+                    audio_datas = audio_datas * 2
 
             # 💡 [안내문구 우측 버튼 삽입 로직]
             with btn_cont_placeholder:
