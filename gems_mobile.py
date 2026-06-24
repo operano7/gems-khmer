@@ -24,8 +24,8 @@ st.markdown("""
 
 # 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
 st.markdown("🗣️ **음성 종류를 설정하세요:**")
-# 컬럼 비율을 [0.5, 0.9, 0.9, 3.7] 수준으로 극한으로 좁혀 왼쪽으로 밀착시켰습니다.
-col_v1, col_v2, col_v3, _ = st.columns([0.5, 0.9, 0.9, 3.7])
+# 컬럼 비율 조정: Google (여성)이 줄바꿈되지 않도록 첫 번째 열의 비율을 약간 늘렸습니다. (0.5 -> 0.7)
+col_v1, col_v2, col_v3, _ = st.columns([0.7, 0.9, 0.9, 3.5])
 
 with col_v1:
     use_google = st.checkbox("Google (여성)", value=True)
@@ -210,10 +210,11 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 
     js_array = str(b64_audios).replace("'", '"')
 
+    # 💡 [핵심 UI 개선] 패딩과 높이(height)를 대폭 줄여서 플레이어를 슬림하게 만들었습니다.
     html_code = f"""
-    <div style="background-color: #f0f2f6; padding: 10px; border-radius: 10px;">
-        <audio id="sequentialPlayer" controls autoplay style="width: 100%; outline: none;"></audio>
-        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 14px; margin-top: 5px; color: #333;">
+    <div style="background-color: #f0f2f6; padding: 5px 10px; border-radius: 8px;">
+        <audio id="sequentialPlayer" controls autoplay style="width: 100%; height: 35px; outline: none;"></audio>
+        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 13px; margin-top: 3px; color: #333;">
             오디오 로딩 중...
         </div>
     </div>
@@ -252,7 +253,8 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
         }}
     </script>
     """
-    components.html(html_code, height=100)
+    # 💡 iframe 요소의 전체 높이도 100에서 75로 줄여 위아래 낭비되는 공간을 삭감했습니다.
+    components.html(html_code, height=75)
 
 if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
