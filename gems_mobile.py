@@ -21,8 +21,6 @@ if EXCEL_FILE:
     # 멀티 시트 자동 감지 엔진
     xl = pd.ExcelFile(EXCEL_FILE, engine='openpyxl')
     sheet_names = xl.sheet_names
-    
-    # 모바일 화면 상단에 시트 선택 박스 배치
     selected_sheet = st.selectbox("📂 학습할 단어장 시트를 선택하세요:", sheet_names)
 else:
     st.error("❌ 서버 저장소에 '캄보디아어 공부' 엑셀 파일이 존재하지 않습니다.")
@@ -31,69 +29,56 @@ else:
 @st.cache_data
 def load_data(sheet_name):
     try:
-        # 시트 로드 (헤더 없이 순수 데이터로 먼저 파싱)
+        # 헤더 없이 순수 데이터 구조로 로드
         df = pd.read_excel(EXCEL_FILE, sheet_name=sheet_name, header=None, engine='openpyxl')
         
-        # [슈퍼 헤더 탐색 및 float 에러 원천 차단 장치]
-        header_row_idx = None
-        for idx in range(min(15, len(df))):
-            row_values = [str(val).strip() for val in df.iloc[idx].values]
-            if any('크메르어' in val or '단어' in val for val in row_values):
-                header_row_idx = idx
+        # 💡 시작 행 추적 (유령 타이틀 스킵)
+        start_row = 0
+        for i in range(min(15, len(df))):
+            val = str(df.iloc[i, 0]).strip()
+            if val.isdigit() or val == '번호' or 'no' in val.lower():
+                start_row = i if val.isdigit() else i + 1
                 break
+                
+        df = df.iloc[start_row:].reset_index(drop=True)
+        num_cols = df.shape[1]
         
-        # 진짜 제목줄 격상 시키기
-        if header_row_idx is not None:
-            df.columns = [str(c).strip() for c in df.iloc[header_row_idx]]
-            df = df.iloc[header_row_idx + 1:].reset_index(drop=True)
-        else:
-            df.columns = [f"col_{i}" for i in range(df.shape[1])]
-            
-        cols = list(df.columns)
-        word_col, pron_col, kor_col = None, None, None
+        # 💡 [iloc 물리적 위치 강제 매핑] 
+        # 열의 이름이나 형태에 의존하지 않고 A=0, B=1, C=2, D=3 구조로 무조건 잘라옵니다.
+        df['원문'] = df.iloc[:, 1].astype(str) if num_cols > 1 else ""
+        df['발음'] = df.iloc[:, 2].astype(str) if num_cols > 2 else ""
+        df['한국어'] = df.iloc[:, 3].astype(str) if num_cols > 3 else ""
         
-        # [정밀 키워드 분리 매핑 로직]
-        for col in cols:
-            c_str = str(col).strip()
-            if '크메르어' in c_str or '원문' in c_str:
-                word_col = col
-            elif '발음' in c_str or '표기' in c_str:
-                pron_col = col
-            elif '뜻' in c_str or '의미' in c_str or '해석' in c_str or '번역' in c_str:
-                kor_col = col
+        # 💡 빈칸(float, NaN)을 빈 문자열로 완벽하게 소독하는 정제 함수
+        def clean_text(text):
+            t = str(text).strip()
+            return "" if t.lower() in ['nan', 'none', 'nat'] else t
 
-        non_no_cols = [c for c in cols if '번호' not in str(c) and 'no' not in str(c).lower() and 'col_' not in str(c)]
-        if not word_col and len(non_no_cols) >= 1: word_col = non_no_cols[0]
-        if not pron_col and len(non_no_cols) >= 2: pron_col = non_no_cols[1]
-        if not kor_col and len(non_no_cols) >= 3: kor_col = non_no_cols[2]
+        df['원문'] = df['원문'].apply(clean_text)
+        df['발음'] = df['발음'].apply(clean_text)
+        df['한국어'] = df['한국어'].apply(clean_text)
         
-        if not word_col and len(cols) >= 2: word_col, pron_col, kor_col = cols[1], cols[2], cols[3]
+        df = df[df['원문'] != '']
 
-        if word_col:
-            df['원문'] = df[word_col].astype(str).str.strip()
-            df['발음'] = df[pron_col].astype(str).str.strip() if pron_col in df.columns else ""
-            df['한국어'] = df[kor_col].astype(str).str.strip() if kor_col in df.columns else ""
+        # 💡 [float 에러 원천 차단 결합 로직]
+        def combine_meanings(row):
+            parts = []
+            # 여기서 한 번 더 str()로 감싸 타입 충돌의 싹을 자릅니다.
+            pron = str(row['발음']).strip()
+            kor = str(row['한국어']).strip()
             
-            for c in ['원문', '발음', '한국어']:
-                df[c] = df[c].replace('nan', '').replace('None', '')
+            if pron: parts.append(f"[{pron}]")
+            if kor: parts.append(kor)
             
-            df = df[df['원문'] != '']
+            return "  ➔  ".join(parts) if parts else "해석 없음"
 
-            def combine_meanings(row):
-                parts = []
-                if row['발음']: parts.append(f"[{row['발음']}]")
-                if row['한국어']: parts.append(row['한국어'])
-                return "  ➔  ".join(parts) if parts else "해석 없음"
-
-            df['의미'] = df.apply(combine_meanings, axis=1)
-            
-            sub_df = df[['원문', '의미']].dropna()
-            sub_df.columns = ['단어', '의미']
-            sub_df = sub_df[~sub_df['단어'].astype(str).str.contains('크메르어|단어|번호|헤더', na=False)]
-            return sub_df
-        else:
-            st.error(f"❌ 유효한 열을 찾지 못했습니다. (확인된 열 목록: {cols})")
-            return None
+        df['의미'] = df.apply(combine_meanings, axis=1)
+        
+        sub_df = df[['원문', '의미']].dropna()
+        sub_df.columns = ['단어', '의미']
+        
+        sub_df = sub_df[~sub_df['단어'].str.contains('크메르어|단어|번호|헤더', na=False)]
+        return sub_df
             
     except Exception as e:
         st.error(f"❌ 엑셀 파일을 읽어올 수 없습니다: {e}")
@@ -102,17 +87,15 @@ def load_data(sheet_name):
 df = load_data(selected_sheet)
 
 if df is not None:
-    # 3. 통합 검색 창 (💡 오타 완벽 교정 완료)
     search_query = st.text_input("🔍 단어, 발음 또는 해석 검색:", "")
     if search_query:
-        filtered_df = df[df['단어'].astype(str).str.contains(search_query, na=False) | 
-                        df['의미'].astype(str).str.contains(search_query, na=False)]
+        filtered_df = df[df['단어'].str.contains(search_query, na=False) | 
+                        df['의미'].str.contains(search_query, na=False)]
     else:
         filtered_df = df
 
     st.write(f"총 {len(filtered_df)}개의 단어가 검색되었습니다.")
 
-    # 4. 모바일 UI 리스트 출력
     display_list = [f"[{i+1}] {row['단어']} : {row['의미']}" for i, row in filtered_df.iterrows()]
     
     if display_list:
@@ -120,7 +103,6 @@ if df is not None:
         selected_word = selected_item.split("] ")[1].split(" : ")[0]
         st.success(f"현재 선택된 단어: {selected_word}")
 
-        # 5. 오디오 자동 재생
         tts = gTTS(text=selected_word, lang='km')
         fp = io.BytesIO()
         tts.write_to_fp(fp)
