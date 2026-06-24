@@ -450,6 +450,11 @@ if processed_df is not None:
                     for err in error_msgs:
                         st.error(err)
 
+                # 💡 [반복 학습 최적화] 한 단어/문장을 확실히 입에 붙일 수 있도록, 
+                # 생성된 음성 리스트를 메모리 상에서 2배로 늘려 자동으로 2번씩 반복 재생되게 합니다.
+                if audio_datas:
+                    audio_datas = audio_datas * 2
+
             # 💡 [안내문구 우측 버튼 삽입 로직]
             with btn_cont_placeholder:
                 # 💡 폭 최소화를 위해 use_container_width=False 적용
