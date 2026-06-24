@@ -325,7 +325,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
                         playBtn.innerText = "⏳ 다음 단어...";
                         playBtn.style.backgroundColor = "#6c757d";
                         
-                        // 💡 오디오 재생이 2번 반복까지 완벽히 끝나면, 부모 창에 있는 숨겨진 넘김 버튼을 찾아 자동으로 누릅니다!
+                        // 💡 오디오 재생이 완벽히 끝나면, 부모 창에 있는 숨겨진 넘김 버튼을 찾아 자동으로 누릅니다!
                         var buttons = window.parent.document.querySelectorAll('button');
                         for(var i=0; i<buttons.length; i++) {{
                             if(buttons[i].innerText.trim() === 'AUTO_NEXT_BTN_XYZ') {{
@@ -402,14 +402,7 @@ if processed_df is not None:
     # 원본 DataFrame 렌더링 준비
     display_df = filtered_df.drop(columns=['한국어', '영어']).copy()
     
-    # 💡 [문장 선택 UI 이동 효과 구현]
-    # Streamlit 표의 체크박스는 시스템상 강제 이동이 불가능하므로, 
-    # '상태' 열을 맨 앞에 동적으로 추가하여 현재 재생 위치를 화살표 텍스트로 명확히 표시합니다.
-    status_list = [""] * len(display_df)
-    if 0 <= target_idx < len(display_df):
-        status_list[target_idx] = "▶️ 재생중"
-    display_df.insert(0, '상태', status_list)
-    
+    # 💡 불필요하게 추가되었던 '상태' 열을 삭제하여 표를 원상복구했습니다.
     # 렌더링 (key="word_table" 부여를 통해 선행 동기화 로직과 연결)
     selection = st.dataframe(
         display_df,
@@ -465,11 +458,6 @@ if processed_df is not None:
                     for err in error_msgs:
                         st.error(err)
 
-                # 💡 [반복 재생 일괄 적용]
-                # 사용자가 '재생' 버튼을 누르든 '연속' 버튼을 누르든 항상 2번씩 반복되도록 일괄 적용합니다.
-                if audio_datas:
-                    audio_datas = audio_datas * 2
-
             # 💡 [안내문구 우측 버튼 삽입 로직]
             with btn_cont_placeholder:
                 # 폭 최소화를 위해 use_container_width=False 적용
@@ -486,7 +474,7 @@ if processed_df is not None:
             st.session_state.is_continuous_playing = False
 
 # 💡 [보이지 않는 자동 넘김 스위치 (최하단 배치)]
-# 브라우저(자바스크립트)가 2번 재생을 완전히 마치면, 몰래 이 버튼을 눌러 다음 문장으로 넘어갑니다.
+# 브라우저(자바스크립트)가 재생을 완전히 마치면, 몰래 이 버튼을 눌러 다음 문장으로 넘어갑니다.
 if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
     if st.session_state.current_play_idx + 1 < len(filtered_df):
         st.session_state.current_play_idx += 1
