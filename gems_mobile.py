@@ -35,7 +35,6 @@ if not voice_options:
 st.markdown("---")
 
 # 💡 [속도 조절 UI: TTS 선택과 디자인을 통일한 가로형 라디오 버튼]
-# 라디오 버튼의 기본 라벨을 숨기고, TTS 선택 UI처럼 독립된 텍스트(주석) 형태로 분리하여 통일했습니다.
 st.markdown("🐢 **전 TTS 공통 재생 속도를 설정하세요:** (모든 엔진에 공통 적용됩니다)")
 speed_choice = st.radio(
     "속도 선택",
@@ -58,15 +57,13 @@ else:
 
 final_speed_level_desc = speed_choice
 
-# Google TTS 제한 안내 메시지 (사용자가 구글을 선택했을 때만)
+# Google TTS 제한 안내 메시지
 if use_google and final_speed_level_desc == "조금 느리게 (0.8x)":
     st.caption("💡 [알림] Google TTS는 기술적 제약으로 '조금 느리게(0.8x)'를 지원하지 않아 이 단계에서는 보통 속도(1.0x)로 재생됩니다.")
 elif use_google and final_speed_level_desc == "아주 느리게 (0.6x)":
     st.caption("💡 [알림] Google TTS는 기술적 제약으로 '아주 느리게(0.6x)'를 지원하지 않아 이 단계에서는 0.5배속(slow 모드)으로 재생됩니다.")
 
 st.markdown("---")
-
-st.write("표에서 원하는 문장을 터치하면 발음이 재생됩니다.")
 
 # 엑셀 파일 탐색
 EXCEL_FILE = None
@@ -114,7 +111,6 @@ def process_sheet_data(df):
     df = df.iloc[start_row:].reset_index(drop=True)
     num_cols = df.shape[1]
     
-    # 4단 독립 표 포맷팅
     df['번호'] = df.iloc[:, 0].astype(str) if num_cols > 0 else ""
     df['원문'] = df.iloc[:, 1].astype(str) if num_cols > 1 else ""
     df['발음'] = df.iloc[:, 2].astype(str) if num_cols > 2 else ""
@@ -248,7 +244,6 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
     
-    # 💡 [SyntaxError 해결 구간] 괄호 닫기 위치를 정상적으로 수정했습니다.
     if search_query:
         filtered_df = processed_df[
             processed_df['번호'].str.contains(search_query, na=False) |
@@ -259,7 +254,11 @@ if processed_df is not None:
     else:
         filtered_df = processed_df.reset_index(drop=True)
 
-    st.caption(f"총 {len(filtered_df)}개의 항목")
+    # 💡 [핵심 UI 개선] 플레이어와 단어 정보가 표 아래로 밀리지 않도록 상단 고정 컨테이너 생성
+    player_container = st.container()
+    
+    st.markdown("---")
+    st.caption(f"총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)")
 
     selection = st.dataframe(
         filtered_df,
@@ -275,6 +274,7 @@ if processed_df is not None:
     elif isinstance(selection, dict):
         selected_rows = selection.get("selection", {}).get("rows", [])
 
+    # 선택 결과가 있으면 최상단 player_container에 UI를 출력합니다.
     if selected_rows:
         selected_idx = selected_rows[0]
         selected_num = filtered_df.iloc[selected_idx]['번호']
@@ -282,19 +282,21 @@ if processed_df is not None:
         selected_pron = filtered_df.iloc[selected_idx]['발음']
         selected_mean = filtered_df.iloc[selected_idx]['해석']
         
-        st.markdown("---")
-        num_str = f"[{selected_num}] " if selected_num else ""
-        st.success(f"현재 선택됨: **{num_str}{selected_word}**")
-        st.info(f"💡 [{selected_pron}] {selected_mean}")
+        with player_container:
+            num_str = f"[{selected_num}] " if selected_num else ""
+            st.success(f"현재 선택됨: **{num_str}{selected_word}**")
+            st.info(f"💡 [{selected_pron}] {selected_mean}")
 
-        if voice_options:
-            with st.spinner(f"🎵 선택하신 {len(voice_options)}개의 고품질 음성(배속: {final_speed_level_desc})을 동시 준비 중입니다..."):
-                audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
-            
-            for err in error_msgs:
-                st.error(err)
-            
-            if audio_datas:
-                play_sequential_audio(audio_datas, final_speed_level_desc)
+            if voice_options:
+                with st.spinner(f"🎵 선택하신 {len(voice_options)}개의 고품질 음성(배속: {final_speed_level_desc})을 동시 준비 중입니다..."):
+                    audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
+                
+                for err in error_msgs:
+                    st.error(err)
+                
+                if audio_datas:
+                    play_sequential_audio(audio_datas, final_speed_level_desc)
     else:
-        st.info("💡 위 표에서 원하는 행을 손가락으로 터치하세요.")
+        # 아무것도 선택되지 않았을 때의 기본 안내 메시지
+        with player_container:
+            st.info("💡 아래 표에서 학습할 단어/문장의 왼쪽 끝 빈칸을 손가락으로 터치하세요.")
