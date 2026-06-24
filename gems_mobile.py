@@ -1,72 +1,512 @@
 import streamlit as st
 import pandas as pd
+import io
 import os
 import asyncio
 import edge_tts
 import base64
 import streamlit.components.v1 as components
+import time
 
 # 1. 화면 설정
 st.set_page_config(page_title="크메르어 학습기", page_icon="🎧", layout="wide")
+
+# 💡 [크기 조정] st.title() 보다 한 단계 글씨가 작은 st.header()로 변경하여 상단 제목 크기를 약간 줄였습니다.
 st.header("🎧 크메르어 학습기")
 
-# 상태 관리 초기화
-if "current_play_idx" not in st.session_state: st.session_state.current_play_idx = 0
-if "is_continuous" not in st.session_state: st.session_state.is_continuous = False
+# 💡 [크메르어 전용 커스텀 폰트, 프리로딩 및 전역 CSS 강제 주입]
+st.markdown("""
+<style>
+/* 1. 얇은 폰트를 배제하고 '굵은 글씨(700)' 버전의 Noto Sans Khmer 폰트만 단독 임포트 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@700&display=swap');
 
-# 데이터 로드
+/* 2. 💡 [화면 잘림 버그 해결] 스트림릿 레이아웃을 파괴하던 과도한 CSS를 제거하고, 
+      표(Canvas)가 참조하는 가장 안전한 루트 폰트 변수만 정밀하게 덮어씁니다. */
+:root {
+    --font: 'Noto Sans Khmer', sans-serif;
+}
+
+body, .stApp {
+    font-family: 'Noto Sans Khmer', sans-serif;
+}
+
+/* 선택된 텍스트 영역 커스텀: 💡 폰트 크기 15pt -> 20pt 로 재변경 */
+.khmer-custom-font {
+    font-family: 'Noto Sans Khmer', sans-serif !important;
+    font-size: 20pt !important;
+    font-weight: 700 !important;
+}
+
+/* 속도 조절 라디오 버튼 가로 간격(gap) 넓히기 */
+div[role="radiogroup"] {
+    gap: 3rem !important; 
+}
+
+/* 체크박스 텍스트(Edge 남성/여성) 강제 한 줄 표시 (줄바꿈 방지) */
+div[data-testid="stCheckbox"] p {
+    white-space: nowrap !important;
+}
+</style>
+
+<!-- 3. 💡 폰트 프리로딩(Preloading) 핵: 표가 그려지기 전 브라우저가 굵은 폰트를 즉시 다운받도록 투명/숨김 텍스트 배치 -->
+<div style="font-family: 'Noto Sans Khmer'; font-weight: 700; position: absolute; width: 0; height: 0; overflow: hidden;">
+    Preload Noto Sans Khmer Bold
+</div>
+""", unsafe_allow_html=True)
+
+# 💡 [상태 관리] 연속 재생 및 행 선택 초기화
+if "is_continuous_playing" not in st.session_state:
+    st.session_state.is_continuous_playing = False
+if "current_play_idx" not in st.session_state:
+    st.session_state.current_play_idx = 0
+if "last_clicked_row" not in st.session_state:
+    st.session_state.last_clicked_row = None # 터치 강제 롤백 방지용 상태 추가
+
+# 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
+st.markdown("🗣️ **음성 종류를 설정하세요:**")
+# 컬럼 비율 조정: 두 번째 열의 폭을 줄여 'Edge 여성' 문구가 앞쪽으로 당겨지도록 조정했습니다. (1.5 -> 1.2)
+col_v1, col_v2, col_v3, _ = st.columns([0.8, 1.2, 1.2, 2.8])
+
+with col_v1:
+    use_google = st.checkbox("Google (여성)", value=True)
+with col_v2:
+    use_edge_m = st.checkbox("Edge 남성 (Piseth Neural)")
+with col_v3:
+    use_edge_f = st.checkbox("Edge 여성 (Sreymom Neural)")
+
+voice_options = []
+if use_google: voice_options.append("Google (여성)")
+if use_edge_m: voice_options.append("Edge 남성 (Piseth Neural)")
+if use_edge_f: voice_options.append("Edge 여성 (Sreymom Neural)")
+
+if not voice_options:
+    st.warning("⚠️ 재생할 목소리를 최소 1개 이상 체크해 주세요.")
+
+# 여백을 제거한 커스텀 구분선
+st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
+
+# 💡 [속도 조절 UI: TTS 선택과 디자인을 통일한 가로형 라디오 버튼]
+st.markdown("🐢 **음성 재생 속도를 설정하세요:**")
+speed_choice = st.radio(
+    "속도 선택",
+    options=["아주 느리게 (0.6x)", "조금 느리게 (0.8x)", "보통 속도 (1.0x)"],
+    index=2, # 기본값: 보통 속도
+    horizontal=True,
+    label_visibility="collapsed"
+)
+
+# 선택된 속도에 따른 엔진 파라미터 매핑
+if speed_choice == "아주 느리게 (0.6x)":
+    final_edge_rate_str = "-40%"
+    final_gtts_slow = True
+elif speed_choice == "조금 느리게 (0.8x)":
+    final_edge_rate_str = "-20%"
+    final_gtts_slow = False
+else:
+    final_edge_rate_str = "+0%"
+    final_gtts_slow = False
+
+final_speed_level_desc = speed_choice
+
+# Google TTS 제한 안내 메시지
+if use_google and final_speed_level_desc == "조금 느리게 (0.8x)":
+    st.caption("💡 [알림] Google TTS는 기술적 제약으로 '조금 느리게(0.8x)'를 지원하지 않아 이 단계에서는 보통 속도(1.0x)로 재생됩니다.")
+elif use_google and final_speed_level_desc == "아주 느리게 (0.6x)":
+    st.caption("💡 [알림] Google TTS는 기술적 제약으로 '아주 느리게(0.6x)'를 지원하지 않아 이 단계에서는 0.5배속(slow 모드)으로 재생됩니다.")
+
+# 여백을 제거한 커스텀 구분선
+st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
+
+# 엑셀 파일 탐색
+EXCEL_FILE = None
+for ext in ['.xlsm', '.xlsx']:
+    if os.path.exists(f"캄보디아어 공부{ext}"):
+        EXCEL_FILE = f"캄보디아어 공부{ext}"
+        break
+
+if not EXCEL_FILE:
+    st.error("❌ 엑셀 파일이 없습니다.")
+    st.stop()
+
+# 메모리 격리 파일 로드
 @st.cache_data
-def load_data():
-    EXCEL_FILE = None
-    for ext in ['.xlsm', '.xlsx']:
-        if os.path.exists(f"캄보디아어 공부{ext}"):
-            EXCEL_FILE = f"캄보디아어 공부{ext}"
-            break
-    if not EXCEL_FILE: return None
-    df = pd.read_excel(EXCEL_FILE, header=None, engine='openpyxl').iloc[1:].dropna(how='all')
-    required_cols = ['번호', '원문', '발음', '한국어', '영어']
-    df = df.iloc[:, :len(required_cols)]
-    df.columns = required_cols
-    return df.reset_index(drop=True)
-
-df = load_data()
-if df is None: st.error("파일 없음"); st.stop()
-
-# 💡 개선된 통합 플레이어 (초기 원복 버전)
-def render_player(text, is_continuous):
-    # 실제 오디오 생성
-    audio_bytes = asyncio.run(edge_tts.Communicate(text, "km-KH-PisethNeural").save(None))
-    b64 = base64.b64encode(audio_bytes).decode()
+def load_all_data(filepath):
+    with open(filepath, "rb") as f:
+        file_bytes = f.read()
     
-    html = f"""
-    <audio id="audio" src="data:audio/mp3;base64,{b64}" autoplay></audio>
+    excel_data = io.BytesIO(file_bytes)
+    xl = pd.ExcelFile(excel_data, engine='openpyxl')
+    sheet_names = xl.sheet_names
+    
+    sheets_dict = {}
+    for sheet in sheet_names:
+        sheets_dict[sheet] = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet, header=None, engine='openpyxl')
+        
+    return sheet_names, sheets_dict
+
+try:
+    sheet_names, all_sheets = load_all_data(EXCEL_FILE)
+except Exception as e:
+    st.error(f"❌ 데이터 로드 중 오류: {e}")
+    st.stop()
+
+# 💡 [공간 최적화] 단어장 시트 선택과 검색어 입력을 한 줄(2개의 컬럼)에 나란히 배치했습니다.
+col_sheet_select, col_search_input = st.columns(2)
+
+with col_sheet_select:
+    selected_sheet = st.selectbox("📂 학습할 단어장 시트:", sheet_names)
+
+with col_search_input:
+    search_query = st.text_input("🔍 검색어 입력:", "")
+
+def process_sheet_data(df_raw):
+    start_row = 0
+    for i in range(min(15, len(df_raw))):
+        val = str(df_raw.iloc[i, 0]).strip()
+        if val.isdigit() or val == '번호' or 'no' in val.lower():
+            start_row = i if val.isdigit() else i + 1
+            break
+            
+    df = df_raw.iloc[start_row:].reset_index(drop=True)
+    num_cols = df.shape[1]
+    
+    # 💡 [핵심] 2번째 열(크메르어 다음 열)이 URL 열인지 동적 탐지
+    is_url_col = False
+    if num_cols > 2:
+        # 2번 열 전체 데이터 중 'http', 'www', 'youtu' 등의 링크가 포함되어 있는지 검사
+        col2_text = df_raw.iloc[:, 2].astype(str).str.lower()
+        if col2_text.str.contains('http|www\.|youtu', na=False).any():
+            is_url_col = True
+            
+    # URL 열 유무에 따라 발음, 한국어, 영어 데이터가 있는 열(Column) 인덱스를 동적으로 조정
+    idx_pron = 3 if is_url_col else 2
+    idx_kor = 4 if is_url_col else 3
+    idx_eng = 5 if is_url_col else 4
+    
+    df['번호'] = df.iloc[:, 0].astype(str) if num_cols > 0 else ""
+    df['원문'] = df.iloc[:, 1].astype(str) if num_cols > 1 else ""
+    df['발음'] = df.iloc[:, idx_pron].astype(str) if num_cols > idx_pron else ""
+    df['한국어'] = df.iloc[:, idx_kor].astype(str) if num_cols > idx_kor else ""
+    df['영어'] = df.iloc[:, idx_eng].astype(str) if num_cols > idx_eng else ""
+    
+    def clean_text(text):
+        t = str(text).strip()
+        if t.lower() in ['nan', 'none', 'nat', '']: return ""
+        if t.endswith('.0'): return t[:-2]
+        return t
+        
+    for c in ['번호', '원문', '발음', '한국어', '영어']:
+        df[c] = df[c].apply(clean_text)
+    
+    df = df[df['원문'] != '']
+
+    def combine_meanings(row):
+        parts = []
+        if row['한국어']: parts.append(row['한국어'])
+        if row['영어']: parts.append(row['영어'])
+        return " / ".join(parts) if parts else ""
+        
+    df['해석'] = df.apply(combine_meanings, axis=1)
+
+    # 한글과 영문을 분리하여 출력하기 위해 컬럼에 각각 추가 유지
+    sub_df = df[['번호', '원문', '발음', '해석', '한국어', '영어']]
+    sub_df.columns = ['번호', '캄보디아어', '발음', '해석', '한국어', '영어']
+    return sub_df
+
+processed_df = process_sheet_data(all_sheets[selected_sheet])
+
+# Edge TTS 비동기 처리 엔진
+def get_edge_audio_sync(text, voice_model, rate_str):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    async def _generate():
+        communicate = edge_tts.Communicate(text, voice_model, rate=rate_str)
+        audio_data = b""
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
+        return audio_data
+        
+    result = loop.run_until_complete(_generate())
+    loop.close()
+    return result
+
+# 다중 오디오 동시 생성 캐시 엔진
+@st.cache_data(show_spinner=False)
+def generate_multiple_audios(khmer_text, selected_options, edge_rate, gtts_slow):
+    audio_results = []
+    error_messages = []
+    
+    for opt in selected_options:
+        if "Edge" in opt:
+            try:
+                voice_model = "km-KH-PisethNeural" if "남성" in opt else "km-KH-SreymomNeural"
+                audio_content = get_edge_audio_sync(khmer_text, voice_model, edge_rate)
+                audio_results.append(audio_content)
+            except Exception as e:
+                error_messages.append(f"Edge TTS ({opt}) 에러: {str(e)}")
+        else:
+            try:
+                from gtts import gTTS
+                tts = gTTS(text=khmer_text, lang='km', slow=gtts_slow)
+                fp = io.BytesIO()
+                tts.write_to_fp(fp)
+                audio_results.append(fp.getvalue())
+            except Exception as e:
+                error_messages.append(f"Google TTS 에러: {str(e)}")
+                
+    return audio_results, error_messages
+
+# HTML/JS 커스텀 순차 재생 플레이어 (단일/연속 통합용)
+def play_sequential_audio(audio_bytes_list, is_continuous=False):
+    if not audio_bytes_list:
+        return
+
+    b64_audios = []
+    for ab in audio_bytes_list:
+        b64 = base64.b64encode(ab).decode()
+        b64_audios.append(f"data:audio/mp3;base64,{b64}")
+
+    js_array = str(b64_audios).replace("'", '"')
+    
+    # 연속 재생 모드일 경우 버튼 텍스트와 색상을 변경
+    btn_text = "🔊 연속 재생중" if is_continuous else "🔊 재생중"
+    btn_color = "#198754" if is_continuous else "#198754" # 재생중은 둘 다 초록색
+    
+    # 💡 [자바스크립트 기반 무결점 넘김 로직]
+    html_code = f"""
+    <div id="playerBox" style="display: flex; justify-content: flex-start; align-items: flex-start; width: max-content; cursor: pointer; user-select: none;">
+        <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
+        
+        <div id="playBtn" style="font-family: inherit; font-size: 15px; font-weight: bold; color: white; background-color: #0d6efd; padding: 0 16px; height: 38px; display: inline-flex; justify-content: center; align-items: center; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); transition: all 0.2s; white-space: nowrap; box-sizing: border-box;">
+            ▶️ 재생
+        </div>
+    </div>
     <script>
-        var audio = document.getElementById("audio");
-        audio.onended = function() {{
-            if({str(is_continuous).lower()}) {{
-                window.parent.document.querySelector('[data-testid="stButton"] button').click();
-            }}
+        var audios = {js_array};
+        var currentIdx = 0;
+        var player = document.getElementById("sequentialPlayer");
+        var box = document.getElementById("playerBox");
+        var playBtn = document.getElementById("playBtn");
+        var isContinuous = {'true' if is_continuous else 'false'};
+
+        function updateStatus() {{
+            playBtn.innerText = "{btn_text}";
+            playBtn.style.backgroundColor = "{btn_color}"; 
+        }}
+
+        // 터치 시 강제로 재생 (스마트폰 보안 차단 해제용)
+        box.onclick = function() {{
+            player.play();
         }};
+
+        if(audios.length > 0) {{
+            player.src = audios[0];
+            updateStatus();
+            
+            var playPromise = player.play();
+            if (playPromise !== undefined) {{
+                playPromise.catch(function(error) {{
+                    playBtn.innerText = "⏸️ 터치하여 시작";
+                    playBtn.style.backgroundColor = "#dc3545"; // 빨간색 (모바일 차단 알림)
+                }});
+            }}
+
+            player.onended = function() {{
+                currentIdx++;
+                if(currentIdx < audios.length) {{
+                    player.src = audios[currentIdx];
+                    updateStatus();
+                    player.play();
+                }} else {{
+                    if (isContinuous) {{
+                        playBtn.innerText = "⏳ 다음 단어...";
+                        playBtn.style.backgroundColor = "#6c757d";
+                        
+                        // 💡 오디오 재생이 완벽히 끝나면, 부모 창에 있는 숨겨진 넘김 버튼을 찾아 자동으로 누릅니다!
+                        var buttons = window.parent.document.querySelectorAll('button');
+                        for(var i=0; i<buttons.length; i++) {{
+                            if(buttons[i].innerText.trim() === 'AUTO_NEXT_BTN_XYZ') {{
+                                buttons[i].click();
+                                break;
+                            }}
+                        }}
+                    }} else {{
+                        // 단일 재생은 여기서 깔끔하게 종료됩니다.
+                        playBtn.innerText = "▶️ 재생"; 
+                        playBtn.style.backgroundColor = "#0d6efd"; // 파란색 (완료)
+                    }}
+                }}
+            }};
+        }}
     </script>
     """
-    components.html(html, height=0)
-
-# 표 선택 및 재생 관리
-selection = st.dataframe(df, use_container_width=True, on_select="rerun", selection_mode="single-row", key="table")
-if selection.selection.rows:
-    st.session_state.current_play_idx = selection.selection.rows[0]
-
-if st.button("연속 재생 전환"):
-    st.session_state.is_continuous = not st.session_state.is_continuous
-    st.rerun()
-
-# 자동 순차 재생 로직
-if st.session_state.current_play_idx < len(df):
-    text = df.iloc[st.session_state.current_play_idx]['원문']
-    st.write(f"현재: {text}")
-    render_player(text, st.session_state.is_continuous)
     
-    # 자동 넘김용 버튼
-    if st.button("▶️ 다음 항목으로"):
-        st.session_state.current_play_idx = (st.session_state.current_play_idx + 1) % len(df)
+    # 컴포넌트 높이를 스트림릿 버튼(38px) 크기에 딱 맞춰 여백 최소화
+    components.html(html_code, height=42)
+
+if processed_df is not None:
+    # 검색어 입력과 시트 선택은 상단에 이미 배치되었으므로 필터링 로직만 수행합니다.
+    if search_query:
+        filtered_df = processed_df[
+            processed_df['번호'].str.contains(search_query, na=False) |
+            processed_df['캄보디아어'].str.contains(search_query, na=False) | 
+            processed_df['발음'].str.contains(search_query, na=False) |
+            processed_df['해석'].str.contains(search_query, na=False)
+        ].reset_index(drop=True)
+    else:
+        filtered_df = processed_df.reset_index(drop=True)
+
+    # 💡 [표 선택 값 선행 동기화]
+    if "word_table" in st.session_state:
+        sel = st.session_state.word_table
+        sel_rows = []
+        if hasattr(sel, "selection"):
+            sel_rows = sel.selection.rows
+        elif isinstance(sel, dict):
+            sel_rows = sel.get("selection", {}).get("rows", [])
+            
+        if sel_rows:
+            current_selection = sel_rows[0]
+            # 사용자가 표에서 직접 '새로운 행'을 클릭한 경우에만 갱신
+            if current_selection != st.session_state.last_clicked_row:
+                st.session_state.last_clicked_row = current_selection
+                st.session_state.is_continuous_playing = False
+                st.session_state.current_play_idx = current_selection
+        elif not st.session_state.is_continuous_playing:
+            # 선택이 풀렸고 연속 재생 중이 아니면 리셋
+            st.session_state.current_play_idx = 0
+            st.session_state.last_clicked_row = None
+
+    target_idx = st.session_state.current_play_idx
+
+    # 💡 [핵심 UI 개선] 플레이어와 단어 정보가 표 아래로 밀리지 않도록 상단 고정 컨테이너 생성
+    player_container = st.container()
+    
+    # 여백을 제거한 커스텀 구분선
+    st.markdown("<hr style='margin-top: 0px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+    
+    # 💡 안내 문구, '연속' 버튼, '재생' 버튼 나란히 배치
+    col_caption, col_btn_cont, col_btn_play, col_spacer = st.columns([0.55, 0.15, 0.15, 0.15])
+    
+    with col_caption:
+        st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
+        
+    # 버튼들이 들어갈 공간 확보
+    btn_cont_placeholder = col_btn_cont.empty()
+    btn_play_placeholder = col_btn_play.empty()
+
+    # 원본 DataFrame 준비
+    display_df = filtered_df.drop(columns=['한국어', '영어']).copy()
+    
+    # 💡 [체크박스 자동 이동의 대안: 행 전체 하이라이트 애니메이션 도입!]
+    # WebGL 기반의 스트림릿 체크박스를 강제로 누를 수 없으므로,
+    # Pandas Styler를 이용해 '현재 재생 중인 행' 전체의 배경색을 초록색으로 칠해주는 완벽한 시각적 효과를 부여합니다.
+    def highlight_playing_row(row):
+        # 행의 인덱스(row.name)가 현재 재생 중인 번호(target_idx)와 일치하면 배경색을 변경
+        if row.name == target_idx:
+            # 다크/라이트 모드 모두에서 눈에 확 띄는 반투명 초록색 띠
+            return ['background-color: rgba(25, 135, 84, 0.25);'] * len(row)
+        return [''] * len(row)
+
+    # 하이라이트 디자인이 입혀진 새로운 데이터프레임 생성
+    styled_df = display_df.style.apply(highlight_playing_row, axis=1)
+
+    # 렌더링 (체크박스는 사용자가 수동 조작할 때 쓰고, 이동은 색칠된 배경이 담당합니다)
+    selection = st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="word_table"
+    )
+
+    audio_datas = [] 
+
+    # 선택된 행이 있거나, 연속 재생 중일 때 상단 컨테이너에 단어 정보를 출력
+    if st.session_state.is_continuous_playing or (0 <= target_idx < len(filtered_df)):
+        if target_idx < len(filtered_df):
+            selected_num = filtered_df.iloc[target_idx]['번호']
+            selected_word = filtered_df.iloc[target_idx]['캄보디아어']
+            selected_pron = filtered_df.iloc[target_idx]['발음']
+            selected_kor = filtered_df.iloc[target_idx]['한국어']
+            selected_eng = filtered_df.iloc[target_idx]['영어']
+            
+            with player_container:
+                num_str = f"[{selected_num}] " if selected_num else ""
+                pron_str = f"{selected_pron} " if selected_pron else ""
+                
+                box_padding = "6px 14px"
+                
+                kor_html = f"<span style='color: #20c997; font-size: 15pt; font-weight: bold;'>{selected_kor}</span>" if selected_kor else ""
+                eng_html = f"<span style='color: #fd7e14; font-size: 15pt; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
+                colored_mean = " ".join(filter(None, [kor_html, eng_html]))
+
+                html_combined_display = f"""<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
+        <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;">
+            <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
+        </div>
+        <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
+            <div style="line-height: 1.5; padding-top: 1px;">
+                <span style="color: #3b82f6; font-size: 15pt; font-weight: bold;">{pron_str}</span> {colored_mean}
+            </div>
+        </div>
+    </div>"""
+                
+                st.markdown(html_combined_display, unsafe_allow_html=True)
+
+                if voice_options:
+                    # 연속 재생 중일 때는 spinner를 조용하게 띄우거나 생략
+                    if not st.session_state.is_continuous_playing:
+                        with st.spinner(f"🎵 음성 준비 중..."):
+                            audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
+                    else:
+                        audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
+
+                    for err in error_msgs:
+                        st.error(err)
+
+                # 💡 [반복 재생 일괄 적용]
+                # 사용자가 '재생' 버튼을 누르든 '연속' 버튼을 누르든 항상 2번씩 반복되도록 일괄 적용합니다. (선교사님 요청사항)
+                if audio_datas:
+                    audio_datas = audio_datas * 2
+
+            # 💡 [안내문구 우측 버튼 삽입 로직]
+            with btn_cont_placeholder:
+                # 폭 최소화를 위해 use_container_width=False 적용
+                if st.button("⏹️ 중지" if st.session_state.is_continuous_playing else "⏭️ 연속", use_container_width=False):
+                    st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
+                    st.rerun()
+
+            if audio_datas:
+                # 💡 단일, 연속 모드 상관없이 모두 정밀한 커스텀 자바스크립트가 제어합니다!
+                with btn_play_placeholder:
+                    play_sequential_audio(audio_datas, is_continuous=st.session_state.is_continuous_playing)
+                
+        else:
+            st.session_state.is_continuous_playing = False
+
+# 💡 [보이지 않는 자동 넘김 스위치 (최하단 배치)]
+# 브라우저(자바스크립트)가 재생을 완전히 마치면, 몰래 이 버튼을 눌러 다음 문장으로 넘어갑니다.
+if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
+    if st.session_state.current_play_idx + 1 < len(filtered_df):
+        st.session_state.current_play_idx += 1
         st.rerun()
+    else:
+        st.success("🎉 단어장의 끝에 도달했습니다!")
+        st.session_state.is_continuous_playing = False
+        st.rerun()
+
+# 💡 화면에서 지저분한 영문 스위치를 숨깁니다.
+components.html("""
+<script>
+var buttons = window.parent.document.querySelectorAll('button');
+buttons.forEach(function(btn) {
+    if(btn.innerText.trim() === 'AUTO_NEXT_BTN_XYZ') {
+        btn.style.display = 'none';
+    }
+});
+</script>
+""", height=0)
