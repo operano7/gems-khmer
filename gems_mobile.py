@@ -2,26 +2,20 @@ import streamlit as st
 import pandas as pd
 import io
 import os
-import requests  # OpenAI 통신용 가장 안정적인 직통 라이브러리
+import requests
 
 # 1. 화면 설정
 st.set_page_config(page_title="GEMS Mobile Table", page_icon="🔊", layout="wide")
-
 st.title("🇰🇭 GEMS 모바일 크메르어 학습기")
 
-# [음성 엔진 설정]
 voice_option = st.radio(
     "🗣️ 발음 목소리 선택:", 
     ["Google (여성)", "OpenAI 남성 (Onyx)", "OpenAI 여성 (Nova)"], 
     horizontal=True
 )
 
-OPENAI_API_KEY = ""
-if "OpenAI" in voice_option:
-    if "OPENAI_API_KEY" in st.secrets:
-        OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-    else:
-        OPENAI_API_KEY = st.text_input("🔑 OpenAI API Key를 입력하세요:", type="password")
+# 💡 [입력창 전면 철거] 화면 입력 대신 스트림릿 서버에 등록된 보안 키만 끌어옵니다.
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
 
 st.write("표에서 원하는 문장을 터치하면 발음이 재생됩니다.")
 
@@ -100,16 +94,14 @@ def process_sheet_data(df):
 
 processed_df = process_sheet_data(all_sheets[selected_sheet])
 
-# 💡 [핵심 최적화: 캐시 강제 폭파 및 직통 통신망(REST API) 구축]
 @st.cache_data(show_spinner=False)
 def generate_audio_bytes_final(khmer_text, v_option, api_key):
     if "OpenAI" in v_option:
         if not api_key:
-            return None, "⚠️ API Key가 입력되지 않았습니다."
+            return None, "⚠️ 스트림릿 서버 Secrets에 API Key가 등록되지 않았습니다."
         try:
             voice_model = "onyx" if "남성" in v_option else "nova"
             
-            # openai 패키지 없이 직접 통신하여 침묵 에러를 원천 차단합니다.
             headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
@@ -121,7 +113,6 @@ def generate_audio_bytes_final(khmer_text, v_option, api_key):
                 "response_format": "mp3"
             }
             
-            # OpenAI 서버로 데이터 요청 (최대 15초 대기)
             response = requests.post("https://api.openai.com/v1/audio/speech", headers=headers, json=payload, timeout=15)
             
             if response.status_code == 200:
@@ -181,7 +172,6 @@ if processed_df is not None:
         st.success(f"🔊 현재 선택됨: **{num_str}{selected_word}**")
         st.info(f"💡 [{selected_pron}] {selected_mean}")
 
-        # 💡 로딩 상태를 명확히 보여주는 스피너 장착
         with st.spinner("🎵 고품질 음성을 생성/불러오는 중입니다... (최초 1~3초 소요)"):
             audio_data, error_msg = generate_audio_bytes_final(selected_word, voice_option, OPENAI_API_KEY)
         
