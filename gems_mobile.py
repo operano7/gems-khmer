@@ -43,15 +43,6 @@ div[role="radiogroup"] {
 div[data-testid="stCheckbox"] p {
     white-space: nowrap !important;
 }
-
-/* 💡 추가: Streamlit 기본 알림 박스(st.info, st.warning 등)의 상하좌우 여백을 대폭 줄여 초슬림화 */
-div[data-testid="stAlert"] {
-    padding: 8px 14px !important;
-}
-div[data-testid="stAlert"] p {
-    margin-bottom: 0px !important;
-    font-size: 14px !important;
-}
 </style>
 
 <!-- 3. 💡 폰트 프리로딩(Preloading) 핵: 표가 그려지기 전 브라우저가 굵은 폰트를 즉시 다운받도록 투명/숨김 텍스트 배치 -->
@@ -378,24 +369,36 @@ if processed_df is not None:
         
         with player_container:
             num_str = f"[{selected_num}] " if selected_num else ""
-            
-            # 💡 [공간 최적화] 내부 padding(1rem -> 8px 14px)과 margin-bottom(1rem -> 0px)을 줄여 초슬림하게 개조했습니다.
-            html_word_display = """
-            <div style="padding: 8px 14px; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc; margin-bottom: 0px;">
-                <span class="khmer-custom-font" style="color: #0f5132;">__NUM_STR____SELECTED_WORD__</span>
-            </div>
-            """.replace("__NUM_STR__", num_str).replace("__SELECTED_WORD__", selected_word)
-            
-            st.markdown(html_word_display, unsafe_allow_html=True)
-
-            # 한글/영문 색상 분리
-            colored_mean_parts = []
-            if selected_kor: colored_mean_parts.append(f":green[{selected_kor}]")
-            if selected_eng: colored_mean_parts.append(f":orange[{selected_eng}]")
-            
-            colored_mean = " ".join(colored_mean_parts)
             pron_str = f"{selected_pron} " if selected_pron else ""
-            st.info(f"💡 {pron_str}{colored_mean}")
+            
+            # 💡 [여백 100% 완벽 제어] 이제 고집스러운 st.info()를 버렸습니다!
+            # 아래의 숫자를 6px, 10px, 24px 등 원하시는 대로 수정하시면 즉시 확실하게 반응합니다!
+            box_padding = "6px 14px"
+            
+            # 한글/영문 색상을 HTML 태그로 변환 (다크/라이트 모드 모두 잘 보이는 안전한 색상 적용)
+            kor_html = f"<span style='color: #20c997; font-weight: bold;'>{selected_kor}</span>" if selected_kor else ""
+            eng_html = f"<span style='color: #fd7e14; font-weight: bold;'>{selected_eng}</span>" if selected_eng else ""
+            colored_mean = " ".join(filter(None, [kor_html, eng_html]))
+
+            # 💡 Streamlit의 방해를 피하기 위해, 크메르어 박스와 해석 박스를 하나의 커스텀 HTML로 완전히 통합했습니다.
+            html_combined_display = f"""
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
+                <!-- 1. 크메르어 원문 박스 -->
+                <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;">
+                    <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
+                </div>
+                
+                <!-- 2. 발음 및 해석 박스 (기존 st.info 완전 대체) -->
+                <div style="padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 14px; color: inherit; display: flex; align-items: flex-start; gap: 8px;">
+                    <span>💡</span>
+                    <div style="line-height: 1.5; padding-top: 1px;">
+                        <span>{pron_str}</span> {colored_mean}
+                    </div>
+                </div>
+            </div>
+            """
+            
+            st.markdown(html_combined_display, unsafe_allow_html=True)
 
             if voice_options:
                 with st.spinner(f"🎵 선택하신 {len(voice_options)}개의 고품질 음성(배속: {final_speed_level_desc})을 동시 준비 중입니다..."):
