@@ -241,7 +241,7 @@ def generate_multiple_audios(khmer_text, selected_options, edge_rate, gtts_slow)
     return audio_results, error_messages
 
 # HTML/JS 커스텀 순차 재생 플레이어
-def play_sequential_audio(audio_bytes_list, speed_desc):
+def play_sequential_audio(audio_bytes_list):
     if not audio_bytes_list:
         return
 
@@ -252,17 +252,13 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [디자인 혁신] Flexbox를 활용하여 왼쪽 상태 텍스트와 오른쪽 재생 버튼을 한 줄에 나란히 배치했습니다.
+    # 💡 [공간/디자인 혁신] 불필요한 배경 박스를 지우고, 우측 정렬된 깔끔한 단일 버튼 형태로 개조했습니다.
     html_code = """
-    <div id="playerBox" style="display: flex; justify-content: space-between; align-items: center; background-color: #e2e3e5; padding: 6px 12px; border-radius: 6px; cursor: pointer; user-select: none;">
+    <div id="playerBox" style="display: flex; justify-content: flex-end; align-items: center; width: 100%; cursor: pointer; user-select: none;">
         <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
         
-        <!-- 왼쪽: 현재 상태 표시 -->
-        <div id="statusText" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 13px; font-weight: bold; color: #41464b;">
-        </div>
-        
-        <!-- 오른쪽: 깔끔하고 명확한 재생 버튼 -->
-        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 13px; font-weight: bold; color: #0f5132; background-color: #ffffff; padding: 4px 10px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+        <!-- 오른쪽: 깔끔하고 명확한 둥근 재생 버튼 하나만 표시 -->
+        <div id="playBtn" style="font-family: 'Noto Sans Khmer', sans-serif; font-size: 14px; font-weight: bold; color: white; background-color: #198754; padding: 8px 16px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: all 0.2s; white-space: nowrap;">
             ▶️ 재생
         </div>
     </div>
@@ -270,17 +266,12 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
         var audios = __JS_ARRAY__;
         var currentIdx = 0;
         var player = document.getElementById("sequentialPlayer");
-        var status = document.getElementById("statusText");
         var box = document.getElementById("playerBox");
         var playBtn = document.getElementById("playBtn");
 
         function updateStatus() {
-            status.style.color = "#0f5132"; // 진녹색
-            status.innerText = "🔊 재생 중... (" + (currentIdx + 1) + "/" + audios.length + ")";
-            box.style.backgroundColor = "#d1e7dd"; // 연녹색 배경
-            playBtn.innerText = "▶️ 재생중";
-            playBtn.style.backgroundColor = "#e2e3e5";
-            playBtn.style.color = "#6c757d";
+            playBtn.innerText = "🔊 재생 중... (" + (currentIdx + 1) + "/" + audios.length + ")";
+            playBtn.style.backgroundColor = "#0f5132"; // 진녹색으로 변경
         }
 
         // 터치 시 강제로 재생 (스마트폰 보안 차단 해제용)
@@ -295,12 +286,8 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
             var playPromise = player.play();
             if (playPromise !== undefined) {
                 playPromise.catch(function(error) {
-                    status.style.color = "#842029"; // 진빨강
-                    status.innerText = "⏸️ 모바일 차단 (우측 버튼 터치)";
-                    box.style.backgroundColor = "#f8d7da"; // 연빨강 배경
-                    playBtn.innerText = "▶️ 재생";
-                    playBtn.style.backgroundColor = "#ffffff";
-                    playBtn.style.color = "#0f5132";
+                    playBtn.innerText = "⏸️ 재생 (터치)";
+                    playBtn.style.backgroundColor = "#dc3545"; // 빨간색 (모바일 차단 알림)
                 });
             }
 
@@ -311,20 +298,16 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
                     updateStatus();
                     player.play();
                 } else {
-                    status.style.color = "#41464b";
-                    status.innerText = "✅ 재생 완료";
-                    box.style.backgroundColor = "#e2e3e5"; // 회색 배경 복구
-                    playBtn.innerText = "🔄 다시듣기";
-                    playBtn.style.backgroundColor = "#ffffff";
-                    playBtn.style.color = "#0f5132";
+                    playBtn.innerText = "🔄 다시 듣기";
+                    playBtn.style.backgroundColor = "#0d6efd"; // 파란색 (완료)
                 }
             };
         }
     </script>
     """.replace("__JS_ARRAY__", js_array)
     
-    # 버튼 스타일링 등으로 인해 높이가 미세하게 커졌을 것을 대비해 height를 45로 넉넉하게 할당했습니다.
-    components.html(html_code, height=45)
+    # 컴포넌트 높이를 버튼 크기에 딱 맞추어 낭비되는 세로 여백을 원천 차단
+    components.html(html_code, height=40)
 
 if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
@@ -343,10 +326,18 @@ if processed_df is not None:
     player_container = st.container()
     
     # 여백을 제거한 커스텀 구분선
-    st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
-    st.caption(f"총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)")
+    st.markdown("<hr style='margin-top: 0px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+    
+    # 💡 [레이아웃 혁신] 안내 문구와 우측 재생 버튼을 완벽히 한 줄(Row)에 나란히 배치하는 컬럼 로직
+    col_caption, col_player = st.columns([0.7, 0.3])
+    with col_caption:
+        # 버튼과 수평(높이)이 맞도록 padding-top을 살짝 추가
+        st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
+        
+    # 플레이어가 삽입될 빈 공간을 우측 컬럼에 확보
+    player_placeholder = col_player.empty()
 
-    # 💡 무력화되는 Pandas Styler를 삭제하고, 깔끔하게 원본 DataFrame을 렌더링합니다.
+    # 무력화되는 Pandas Styler를 삭제하고, 깔끔하게 원본 DataFrame을 렌더링합니다.
     display_df = filtered_df.drop(columns=['한국어', '영어'])
     
     selection = st.dataframe(
@@ -363,7 +354,9 @@ if processed_df is not None:
     elif isinstance(selection, dict):
         selected_rows = selection.get("selection", {}).get("rows", [])
 
-    # 선택 결과가 있으면 최상단 player_container에 UI를 출력합니다.
+    audio_datas = [] # 💡 안전장치: 에러 방지를 위한 변수 초기화
+
+    # 선택 결과가 있으면 최상단 player_container에 단어 정보를 출력합니다.
     if selected_rows:
         selected_idx = selected_rows[0]
         selected_num = filtered_df.iloc[selected_idx]['번호']
@@ -377,26 +370,4 @@ if processed_df is not None:
             
             # 선택된 영역의 폰트 속성 적용 HTML
             st.markdown(f"""
-            <div style="padding: 1rem; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc; margin-bottom: 1rem;">
-                <span class="khmer-custom-font" style="color: #0f5132;">{num_str}{selected_word}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # 한글/영문 색상 분리
-            colored_mean_parts = []
-            if selected_kor: colored_mean_parts.append(f":green[{selected_kor}]")
-            if selected_eng: colored_mean_parts.append(f":orange[{selected_eng}]")
-            
-            colored_mean = " ".join(colored_mean_parts)
-            pron_str = f"{selected_pron} " if selected_pron else ""
-            st.info(f"💡 {pron_str}{colored_mean}")
-
-            if voice_options:
-                with st.spinner(f"🎵 선택하신 {len(voice_options)}개의 고품질 음성(배속: {final_speed_level_desc})을 동시 준비 중입니다..."):
-                    audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
-                
-                for err in error_msgs:
-                    st.error(err)
-                
-                if audio_datas:
-                    play_sequential_audio(audio_datas, final_speed_level_desc)
+            <div style="padding: 1rem; border-radius: 0.5rem; background-color: #d1e7dd; border: 1
