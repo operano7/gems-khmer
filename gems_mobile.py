@@ -21,18 +21,21 @@ def load_data():
         
         word_col, mean_col = None, None
         
-        # 💡 [스마트 순번 필터링 시스템]
-        # 1열 제목이 '번호'이거나 'no'인 경우, 순번 열이므로 과감히 건너뛰고 2열과 3열을 매핑합니다.
-        if len(cols) >= 3 and (cols[0] == '번호' or 'no' in str(cols[0]).lower()):
-            word_col, mean_col = cols[1], cols[2]
-        # 그 외 일반적인 명시적 매칭 규칙
-        elif '단어' in cols and '의미' in cols:
+        # 💡 [스마트 자동 열 감지 인공지능 시스템]
+        # 엑셀 헤더 명칭이 무엇이든 유연하게 매핑을 시도합니다.
+        if '단어' in cols and '의미' in cols:
             word_col, mean_col = '단어', '의미'
         elif '크메르어 원문' in cols and '한국어 번역' in cols:
             word_col, mean_col = '크메르어 원문', '한국어 번역'
+        elif '크메르어' in cols and '뜻' in cols:
+            word_col, mean_col = '크메르어', '뜻'
         else:
-            # 예외 케이스: 순서대로 할당
-            if len(cols) >= 2:
+            # 명시적인 이름 매칭이 실패하면, 열의 순서(위치) 기준으로 자동 강제 할당합니다.
+            if len(cols) >= 3 and ('타임스탬프' in cols or 'timestamp' in str(cols[0]).lower()):
+                # 1열이 타임스탬프인 경우 ➔ 2열(단어), 3열(의미)로 지정
+                word_col, mean_col = cols[1], cols[2]
+            elif len(cols) >= 2:
+                # 일반적인 경우 ➔ 1열(단어), 2열(의미)로 지정
                 word_col, mean_col = cols[0], cols[1]
         
         if word_col and mean_col:
