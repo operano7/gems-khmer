@@ -359,8 +359,7 @@ if processed_df is not None:
     else:
         filtered_df = processed_df.reset_index(drop=True)
 
-    # 💡 [표 선택 값 선행 동기화 (UI 움직임 구현)]
-    # 표(Dataframe)를 렌더링하기 '전'에 사용자의 선택 상태를 파악하여 target_idx를 먼저 확정합니다.
+    # 💡 [표 선택 값 선행 동기화]
     if "word_table" in st.session_state:
         sel = st.session_state.word_table
         sel_rows = []
@@ -371,7 +370,7 @@ if processed_df is not None:
             
         if sel_rows:
             current_selection = sel_rows[0]
-            # 사용자가 표에서 직접 '새로운 행'을 클릭한 경우에만 갱신 (고착화 방지)
+            # 사용자가 표에서 직접 '새로운 행'을 클릭한 경우에만 갱신
             if current_selection != st.session_state.last_clicked_row:
                 st.session_state.last_clicked_row = current_selection
                 st.session_state.is_continuous_playing = False
@@ -389,7 +388,7 @@ if processed_df is not None:
     # 여백을 제거한 커스텀 구분선
     st.markdown("<hr style='margin-top: 0px; margin-bottom: 10px;'>", unsafe_allow_html=True)
     
-    # 💡 안내 문구, '연속' 버튼, '재생' 버튼을 나란히 배치하되 우측에 스페이서(col_spacer 0.15) 할당
+    # 💡 안내 문구, '연속' 버튼, '재생' 버튼 나란히 배치
     col_caption, col_btn_cont, col_btn_play, col_spacer = st.columns([0.55, 0.15, 0.15, 0.15])
     
     with col_caption:
@@ -399,13 +398,25 @@ if processed_df is not None:
     btn_cont_placeholder = col_btn_cont.empty()
     btn_play_placeholder = col_btn_play.empty()
 
-    # 원본 DataFrame 렌더링 준비
+    # 원본 DataFrame 준비
     display_df = filtered_df.drop(columns=['한국어', '영어']).copy()
     
-    # 💡 불필요하게 추가되었던 '상태' 열을 삭제하여 표를 원상복구했습니다.
-    # 렌더링 (key="word_table" 부여를 통해 선행 동기화 로직과 연결)
+    # 💡 [체크박스 자동 이동의 대안: 행 전체 하이라이트 애니메이션 도입!]
+    # WebGL 기반의 스트림릿 체크박스를 강제로 누를 수 없으므로,
+    # Pandas Styler를 이용해 '현재 재생 중인 행' 전체의 배경색을 초록색으로 칠해주는 완벽한 시각적 효과를 부여합니다.
+    def highlight_playing_row(row):
+        # 행의 인덱스(row.name)가 현재 재생 중인 번호(target_idx)와 일치하면 배경색을 변경
+        if row.name == target_idx:
+            # 다크/라이트 모드 모두에서 눈에 확 띄는 반투명 초록색 띠
+            return ['background-color: rgba(25, 135, 84, 0.25);'] * len(row)
+        return [''] * len(row)
+
+    # 하이라이트 디자인이 입혀진 새로운 데이터프레임 생성
+    styled_df = display_df.style.apply(highlight_playing_row, axis=1)
+
+    # 렌더링 (체크박스는 사용자가 수동 조작할 때 쓰고, 이동은 색칠된 배경이 담당합니다)
     selection = st.dataframe(
-        display_df,
+        styled_df,
         use_container_width=True,
         hide_index=True,
         on_select="rerun",
