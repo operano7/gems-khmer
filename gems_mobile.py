@@ -76,10 +76,10 @@ st.markdown(f"✅ **현재 설정된 공통 속도 단계:** {final_speed_level_
 
 # Google TTS 제한 안내 메시지 팩트 업데이트
 if use_google and final_speed_level_desc == "조금 느리게 (0.8x)":
-    st.markdown("💡 [알림] Google TTS는 기술적 제약으로 '조금 느리게(0.8x)'를 지원하지 않아,")
+    st.markdown("💡 Google TTS는 기술적 제약으로 '조금 느리게(0.8x)'를 지원하지 않아,")
     st.markdown("   이 단계에서는 보통 속도(1.0x)로 재생됩니다.")
 elif use_google and final_speed_level_desc == "아주 느리게 (0.6x)":
-    st.markdown("💡 [알림] Google TTS는 기술적 제약으로 '아주 느리게(0.6x)'를 지원하지 않아,")
+    st.markdown("💡 Google TTS는 기술적 제약으로 '아주 느리게(0.6x)'를 지원하지 않아,")
     st.markdown("   이 단계에서는 0.5배속(slow 모드)으로 재생됩니다.")
 
 st.markdown("---")
@@ -101,7 +101,7 @@ def load_all_data_simulation(filepath):
     data = {
         '번호': list(range(1, 1001)),
         '캄보디아어': [f"សូម ធ្វើประวัติ...{i}" for i in range(1, 1001)],
-        '발음': [f"" for i in range(1, 1001)],
+        '발음': [f"쏨 락싸똑 에까싸 느응 껌넛뜨라 떼양어{i}" for i in range(1, 1001)],
         '해석': [f"모든 문서와 기록을 보관해 주세요 / Keep all documents and records {i}" for i in range(1, 1001)]
     }
     df = pd.DataFrame(data)
@@ -124,8 +124,7 @@ search_query = st.text_input("🔍 검색어 입력:", "")
 
 # 데이터 필터링
 if search_query:
-    filtered_df = processed_df[
-        processed_df['번호'].astype(str).str.contains(search_query, na=False) |
+    filtered_df = processed_df.astype(str).str.contains(search_query, na=False) |
         processed_df['캄보디아어'].str.contains(search_query, na=False) | 
         processed_df['발음'].str.contains(search_query, na=False) |
         processed_df['해석'].str.contains(search_query, na=False)
@@ -146,7 +145,7 @@ selection = st.dataframe(
 )
 
 # 재생 시뮬레이션
-selected_rows = []
+selected_rows =
 if hasattr(selection, "selection"):
     selected_rows = selection.selection.rows
 elif isinstance(selection, dict):
@@ -160,7 +159,7 @@ if selected_rows:
     selected_mean = filtered_df.iloc[selected_idx]['해석']
     
     st.markdown("---")
-    num_str = f"[{selected_num}] " if selected_num else ""
+    num_str = f"[{cite: {selected_num}}] " if selected_num else ""
     st.success(f"🔊 현재 선택됨: **{num_str}{selected_word}**")
     st.info(f"💡 [{cite: {selected_pron}}] {selected_mean}")
 
