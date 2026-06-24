@@ -237,41 +237,4 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [핵심 UI 개선] 불필요한 '오디오 로딩 중...' 문구를 삭제하고 텍스트 공간을 완전히 비웠습니다.
-    html_code = f"""
-    <div style="background-color: #f0f2f6; padding: 5px 10px; border-radius: 8px;">
-        <audio id="sequentialPlayer" controls autoplay style="width: 100%; height: 35px; outline: none;"></audio>
-        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 13px; color: #d9534f; font-weight: bold;"></div>
-    </div>
-    <script>
-        var audios = {js_array};
-        var currentIdx = 0;
-        var player = document.getElementById("sequentialPlayer");
-        var status = document.getElementById("statusText");
-
-        function updateStatus() {{
-            status.innerText = "";
-        }}
-
-        if(audios.length > 0) {{
-            player.src = audios[0];
-            updateStatus();
-            
-            var playPromise = player.play();
-            if (playPromise !== undefined) {{
-                playPromise.catch(function(error) {{
-                    status.style.marginTop = "5px";
-                    status.innerText = "⏸️ 스마트폰 보안 차단: 위 재생(▶) 버튼을 수동으로 눌러주세요.";
-                }});
-            }}
-
-            player.onended = function() {{
-                currentIdx++;
-                if(currentIdx < audios.length) {{
-                    player.src = audios[currentIdx];
-                    updateStatus();
-                    player.play();
-                }} else {{
-                    status.innerText = "";
-                }}
-            }};
+    # 💡 [SyntaxError 완
