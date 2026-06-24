@@ -14,12 +14,21 @@ st.title("오미로 크메르어 학습기")
 # 💡 [크메르어 전용 커스텀 폰트 및 UI 간격 조절 CSS 주입]
 st.markdown("""
 <style>
-/* 구글 웹 폰트(Noto Sans Khmer) 굵은 글씨(700) 임포트: 모바일에서도 굵은 폰트를 강제하기 위함 */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@700&display=swap');
+/* 구글 웹 폰트(Noto Sans Khmer) 굵은 글씨(700) 임포트 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;700&display=swap');
 
-/* 크메르어 폰트 설정 */
+/* 💡 앱 전체 및 표(Dataframe) 내부 캔버스 렌더링에 폰트를 강제 적용하기 위한 루트 변수 덮어쓰기 */
+:root {
+    --font: 'Khmer UI', 'Noto Sans Khmer', sans-serif;
+    --font-family: 'Khmer UI', 'Noto Sans Khmer', sans-serif;
+}
+
+html, body, [class*="st-"], .stApp {
+    font-family: 'Khmer UI', 'Noto Sans Khmer', sans-serif !important;
+}
+
+/* 크메르어 폰트 설정 (선택된 텍스트용) */
 .khmer-custom-font {
-    /* PC에서는 Khmer UI 우선, 모바일에서는 Noto Sans Khmer 적용 */
     font-family: 'Khmer UI', 'Noto Sans Khmer', sans-serif !important;
     font-size: 14pt !important;
     font-weight: 700 !important;
@@ -288,8 +297,17 @@ if processed_df is not None:
     st.caption(f"총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)")
 
     # 화면에 표시되는 테이블에서는 '한국어', '영어' 컬럼을 숨기고 기존의 '해석' 뷰를 유지
+    display_df = filtered_df.drop(columns=['한국어', '영어'])
+    
+    # 💡 [표 내부 폰트 굵기 강제 적용] Pandas Styler를 이용해 글씨체를 굵게(Bold) 설정
+    styled_df = display_df.style.set_properties(**{
+        'font-family': "'Khmer UI', 'Noto Sans Khmer', sans-serif",
+        'font-weight': 'bold',
+        'font-size': '12pt'
+    })
+
     selection = st.dataframe(
-        filtered_df.drop(columns=['한국어', '영어']),
+        styled_df,
         use_container_width=True,
         hide_index=True,
         on_select="rerun",
