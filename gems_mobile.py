@@ -9,23 +9,22 @@ st.set_page_config(page_title="GEMS Mobile Table", page_icon="🔊", layout="wid
 
 st.title("🇰🇭 GEMS 모바일 크메르어 학습기")
 
-# 💡 [핵심 복구] 음성 및 API 키 설정 UI
+# [음성 엔진 설정]
 voice_option = st.radio(
     "🗣️ 발음 목소리 선택:", 
-    ["Google (기본/여성)", "OpenAI 남성 (Onyx)", "OpenAI 여성 (Nova)"], 
+    ["Google (여성)", "OpenAI 남성 (Onyx)", "OpenAI 여성 (Nova)"], 
     horizontal=True
 )
 
-# OpenAI API 키 안전 관리 (서버 Secrets에 있으면 자동 로드, 없으면 사이드바에서 입력)
 OPENAI_API_KEY = ""
-if "OPENAI_API_KEY" in st.secrets:
-    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-else:
-    OPENAI_API_KEY = st.sidebar.text_input("🔑 OpenAI API Key (OpenAI 음성 사용 시 필수):", type="password")
+if "OpenAI" in voice_option:
+    if "OPENAI_API_KEY" in st.secrets:
+        OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+    else:
+        OPENAI_API_KEY = st.text_input("🔑 OpenAI API Key를 입력하세요:", type="password")
 
-st.write("표에서 원하는 문장을 터치하면 발음이 재생됩니다. (재생기 ▶️ 버튼으로 다시 듣기 가능)")
+st.write("표에서 원하는 문장을 터치하면 발음이 재생됩니다.")
 
-# 파일 탐색
 EXCEL_FILE = None
 for ext in ['.xlsm', '.xlsx']:
     if os.path.exists(f"캄보디아어 공부{ext}"):
@@ -102,31 +101,37 @@ def process_sheet_data(df):
 
 processed_df = process_sheet_data(all_sheets[selected_sheet])
 
-# 💡 [핵심 복구] OpenAI 및 Google 하이브리드 음성 엔진
+# 💡 [핵심 복구 및 에러 추적 엔진]
+# 에러를 숨기지 않고 명확하게 반환하여 화면에 출력하도록 고도화했습니다.
 @st.cache_data(show_spinner=False)
-def get_audio_bytes(text, v_option, api_key):
+def get_audio_bytes(khmer_text, v_option, api_key):
     if "OpenAI" in v_option:
         if not api_key:
-            return None # API 키가 없으면 생성 불가
-        
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
-        
-        # 선택에 따라 남성(onyx) 또는 여성(nova) 배정
-        voice_model = "onyx" if "남성" in v_option else "nova"
-        
-        response = client.audio.speech.create(
-            model="tts-1",
-            voice=voice_model,
-            input=text
-        )
-        return response.content
+            return None, "⚠️ API Key가 입력되지 않았습니다."
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            voice_model = "onyx" if "남성" in v_option else "nova"
+            
+            # 💡 꼼수를 버리고 팩트에 기반하여 당당하게 '크메르어 원문'을 던집니다.
+            response = client.audio.speech.create(
+                model="tts-1",
+                voice=voice_model,
+                input=khmer_text
+            )
+            return response.content, None
+        except ImportError:
+            return None, "❌ openai 라이브러리가 설치되지 않았습니다. 깃허브의 requirements.txt 파일에 'openai'를 추가해 주세요."
+        except Exception as e:
+            return None, f"❌ OpenAI 통신 에러: {str(e)}"
     else:
-        # 구글 기본 음성
-        tts = gTTS(text=text, lang='km')
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        return fp.getvalue()
+        try:
+            tts = gTTS(text=khmer_text, lang='km')
+            fp = io.BytesIO()
+            tts.write_to_fp(fp)
+            return fp.getvalue(), None
+        except Exception as e:
+            return None, f"❌ Google TTS 에러: {str(e)}"
 
 if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
@@ -164,16 +169,15 @@ if processed_df is not None:
         selected_mean = filtered_df.iloc[selected_idx]['해석']
         
         num_str = f"[{selected_num}] " if selected_num else ""
-        st.success(f"🔊 현재 선택됨: {num_str}{selected_word}")
+        st.success(f"🔊 재생 중: {num_str}{selected_word}")
         st.info(f"💡 [{selected_pron}] {selected_mean}")
 
-        # 음성 데이터 호출 (캐시 기반 초고속 재생)
-        audio_data = get_audio_bytes(selected_word, voice_option, OPENAI_API_KEY)
+        # 에러 발생 시 숨기지 않고 st.error로 화면에 직관적으로 뿌려줍니다.
+        audio_data, error_msg = get_audio_bytes(selected_word, voice_option, OPENAI_API_KEY)
         
-        if audio_data:
-            # 자동 재생과 동시에 재생기 UI를 화면에 남겨두어 원할 때 언제든 다시 듣기 가능
+        if error_msg:
+            st.error(error_msg)
+        elif audio_data:
             st.audio(audio_data, format="audio/mp3", autoplay=True)
-        else:
-            st.warning("⚠️ OpenAI 음성을 사용하려면 왼쪽 사이드바(화살표 〉)를 열어 API Key를 입력해주세요.")
     else:
         st.info("💡 표에서 원하는 행을 터치하세요.")
