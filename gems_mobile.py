@@ -428,8 +428,8 @@ if processed_df is not None:
     # 여백을 제거한 커스텀 구분선
     st.markdown("<hr style='margin-top: 0px; margin-bottom: 10px;'>", unsafe_allow_html=True)
     
-    # 💡 안내 문구, '연속' 버튼, '재생' 버튼 나란히 배치
-    col_caption, col_btn_cont, col_btn_play, col_spacer = st.columns([0.55, 0.15, 0.15, 0.15])
+    # 💡 [배치 비율 수정] '연속' 버튼이 있는 컬럼 너비를 15% -> 8%로 축소하여 두 버튼이 좌측으로 밀착되게 조정
+    col_caption, col_btn_cont, col_btn_play, col_spacer = st.columns([0.65, 0.08, 0.12, 0.15])
     
     with col_caption:
         st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
