@@ -506,11 +506,9 @@ if processed_df is not None:
                 st.markdown(html_combined_display, unsafe_allow_html=True)
 
                 if voice_options:
-                    if not st.session_state.is_continuous_playing:
-                        with st.spinner(f"🎵 음성 준비 중..."):
-                            audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
-                    else:
-                        audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
+                    # 💡 [테이블 튐 현상 완벽 해결] 로딩 애니메이션(st.spinner)이 화면을 쪼개어 그리면서 
+                    # 버튼이 순간적으로 사라지던 문제를 원천 차단했습니다.
+                    audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
 
                     for err in error_msgs:
                         st.error(err)
