@@ -141,22 +141,35 @@ except Exception as e:
 
 selected_sheet = st.selectbox("📂 학습할 단어장 시트:", sheet_names)
 
-def process_sheet_data(df):
+def process_sheet_data(df_raw):
     start_row = 0
-    for i in range(min(15, len(df))):
-        val = str(df.iloc[i, 0]).strip()
+    for i in range(min(15, len(df_raw))):
+        val = str(df_raw.iloc[i, 0]).strip()
         if val.isdigit() or val == '번호' or 'no' in val.lower():
             start_row = i if val.isdigit() else i + 1
             break
             
-    df = df.iloc[start_row:].reset_index(drop=True)
+    df = df_raw.iloc[start_row:].reset_index(drop=True)
     num_cols = df.shape[1]
+    
+    # 💡 [핵심] 2번째 열(크메르어 다음 열)이 URL 열인지 동적 탐지
+    is_url_col = False
+    if num_cols > 2:
+        # 2번 열 전체 데이터 중 'http', 'www', 'youtu' 등의 링크가 포함되어 있는지 검사
+        col2_text = df_raw.iloc[:, 2].astype(str).str.lower()
+        if col2_text.str.contains('http|www\.|youtu', na=False).any():
+            is_url_col = True
+            
+    # URL 열 유무에 따라 발음, 한국어, 영어 데이터가 있는 열(Column) 인덱스를 동적으로 조정
+    idx_pron = 3 if is_url_col else 2
+    idx_kor = 4 if is_url_col else 3
+    idx_eng = 5 if is_url_col else 4
     
     df['번호'] = df.iloc[:, 0].astype(str) if num_cols > 0 else ""
     df['원문'] = df.iloc[:, 1].astype(str) if num_cols > 1 else ""
-    df['발음'] = df.iloc[:, 2].astype(str) if num_cols > 2 else ""
-    df['한국어'] = df.iloc[:, 3].astype(str) if num_cols > 3 else ""
-    df['영어'] = df.iloc[:, 4].astype(str) if num_cols > 4 else ""
+    df['발음'] = df.iloc[:, idx_pron].astype(str) if num_cols > idx_pron else ""
+    df['한국어'] = df.iloc[:, idx_kor].astype(str) if num_cols > idx_kor else ""
+    df['영어'] = df.iloc[:, idx_eng].astype(str) if num_cols > idx_eng else ""
     
     def clean_text(text):
         t = str(text).strip()
