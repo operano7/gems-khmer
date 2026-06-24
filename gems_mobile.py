@@ -210,23 +210,21 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
 
     js_array = str(b64_audios).replace("'", '"')
 
-    # 💡 [핵심 UI 개선] 패딩과 높이(height)를 대폭 줄여서 플레이어를 슬림하게 만들었습니다.
+    # 💡 [핵심 UI 개선] 불필요한 '오디오 로딩 중...' 문구를 삭제하고 텍스트 공간을 완전히 비웠습니다.
     html_code = f"""
     <div style="background-color: #f0f2f6; padding: 5px 10px; border-radius: 8px;">
         <audio id="sequentialPlayer" controls autoplay style="width: 100%; height: 35px; outline: none;"></audio>
-        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 13px; margin-top: 3px; color: #333;">
-            오디오 로딩 중...
-        </div>
+        <div id="statusText" style="text-align: center; font-family: sans-serif; font-size: 13px; color: #d9534f; font-weight: bold;"></div>
     </div>
     <script>
         var audios = {js_array};
         var currentIdx = 0;
         var player = document.getElementById("sequentialPlayer");
         var status = document.getElementById("statusText");
-        var globalSpeedDesc = "{speed_desc}";
 
         function updateStatus() {{
-            status.innerText = "🔊 재생 중: 공통 배속: " + globalSpeedDesc + " (" + (currentIdx + 1) + " / " + audios.length + " 번째 목소리)";
+            // 재생 중일 때 불필요한 텍스트를 완전히 숨겨서 극한의 슬림함을 유지합니다.
+            status.innerText = "";
         }}
 
         if(audios.length > 0) {{
@@ -236,6 +234,8 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
             var playPromise = player.play();
             if (playPromise !== undefined) {{
                 playPromise.catch(function(error) {{
+                    // 모바일 자동재생 차단 시에만 경고 문구를 표시합니다.
+                    status.style.marginTop = "5px";
                     status.innerText = "⏸️ 스마트폰 보안 차단: 위 재생(▶) 버튼을 수동으로 눌러주세요.";
                 }});
             }}
@@ -247,14 +247,15 @@ def play_sequential_audio(audio_bytes_list, speed_desc):
                     updateStatus();
                     player.play();
                 }} else {{
-                    status.innerText = "✅ 모든 재생 완료 (다시 듣기를 원하시면 표를 다시 터치하세요)";
+                    // 완료 시에도 문구 없이 깔끔하게 비웁니다.
+                    status.innerText = "";
                 }}
             }};
         }}
     </script>
     """
-    # 💡 iframe 요소의 전체 높이도 100에서 75로 줄여 위아래 낭비되는 공간을 삭감했습니다.
-    components.html(html_code, height=75)
+    # 💡 하단 텍스트가 사라졌으므로 iframe의 높이를 75에서 60으로 한층 더 줄였습니다.
+    components.html(html_code, height=60)
 
 if processed_df is not None:
     search_query = st.text_input("🔍 검색어 입력:", "")
