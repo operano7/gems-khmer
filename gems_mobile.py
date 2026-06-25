@@ -70,9 +70,9 @@ col_v1, col_v2, col_v3, _ = st.columns([1.0, 1.2, 1.2, 2.6])
 with col_v1:
     use_google = st.checkbox("Google (여성)", value=True)
 with col_v2:
-    use_edge_m = st.checkbox("Edge 남성 (Piseth Neural)")
+    use_edge_m = st.checkbox("MS Edge (남성)")
 with col_v3:
-    use_edge_f = st.checkbox("Edge 여성 (Sreymom Neural)")
+    use_edge_f = st.checkbox("MS Edge (여성)")
 
 voice_options = []
 if use_google: voice_options.append("Google (여성)")
