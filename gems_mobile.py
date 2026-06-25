@@ -68,11 +68,11 @@ st.markdown("🗣️ **음성 종류를 선택하세요:**")
 col_v1, col_v2, col_v3, _ = st.columns([1.2, 1.2, 1.2, 2.4])
 
 with col_v1:
-    use_google = st.checkbox("Google (여성)", value=True)
+    use_google = st.checkbox("MS Edge (남성)", value=True)
 with col_v2:
-    use_edge_m = st.checkbox("MS Edge (남성)")
+    use_edge_m = st.checkbox("MS Edge (여성)")
 with col_v3:
-    use_edge_f = st.checkbox("MS Edge (여성)")
+    use_edge_f = st.checkbox("Google (여성)")
 
 voice_options = []
 if use_google: voice_options.append("Google (여성)")
