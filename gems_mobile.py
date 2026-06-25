@@ -63,7 +63,7 @@ if "last_clicked_row" not in st.session_state:
     st.session_state.last_clicked_row = None # 터치 강제 롤백 방지용 상태 추가
 
 # 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
-st.markdown("🗣️ **음성 종류를 설정하세요:**")
+st.markdown("🗣️ **음성 종류를 선택하세요:**")
 # 컬럼 비율 조정: 두 번째 열의 폭을 줄여 'Edge 여성' 문구가 앞쪽으로 당겨지도록 조정했습니다.
 col_v1, col_v2, col_v3, _ = st.columns([1.2, 1.2, 1.2, 2.4])
 
@@ -86,7 +86,7 @@ if not voice_options:
 st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
 
 # 💡 [속도 조절 UI: TTS 선택과 디자인을 통일한 가로형 라디오 버튼]
-st.markdown("🐢 **음성 재생 속도를 설정하세요:**")
+st.markdown("🐢 **음성 재생 속도를 선택하세요:**")
 speed_choice = st.radio(
     "속도 선택",
     options=["아주 느리게 (0.6x)", "조금 느리게 (0.8x)", "보통 속도 (1.0x)"],
