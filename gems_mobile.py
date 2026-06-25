@@ -42,7 +42,7 @@ div[data-testid="stCheckbox"] p {
 
 /* 📊 표 스타일 제어: 휜색 테두리 눈에 띄게 추가 및 글자 크기 조정 */
 div[data-testid="stDataFrame"] {
-    border: 1.5px solid #ffffff !important;  /* 요청하신 눈에 띄는 흰색 테두리 */
+    border: 1.5px solid #ffffff !important;
     border-radius: 0.25rem;
 }
 
@@ -149,6 +149,19 @@ with col_search_input:
     search_query = st.text_input("🔍 검색어 입력:", "")
 
 def process_sheet_data(df):
+    # 💡 [헤더 자동 보정 엔진] 엑셀의 첫 줄이 병합되어 있거나 카테고리 제목일 경우를 대비해 실제 컬럼명을 찾습니다.
+    if '크메르어' not in df.columns and '캄보디아어' not in df.columns:
+        # 상위 5개 행 중에서 '크메르어'나 '캄보디아어'가 포함된 행을 찾아서 진짜 헤더로 설정
+        for i in range(min(5, len(df))):
+            row_vals = df.iloc[i].astype(str).str.strip().tolist()
+            if '크메르어' in row_vals or '캄보디아어' in row_vals:
+                df.columns = row_vals
+                df = df.iloc[i+1:].reset_index(drop=True)
+                break
+                
+    # 컬럼명 공백 제거
+    df.columns = [str(c).strip() for c in df.columns]
+
     def clean_text(text):
         t = str(text).strip()
         if t.lower() in ['nan', 'none', 'nat', '']: return ""
@@ -158,8 +171,11 @@ def process_sheet_data(df):
     for c in df.columns:
         df[c] = df[c].apply(clean_text)
     
-    if '캄보디아어' in df.columns:
-        df = df[df['캄보디아어'] != '']
+    # 💡 '캄보디아어' 또는 '크메르어' 컬럼을 유연하게 찾아 필터링
+    khmer_col = '크메르어' if '크메르어' in df.columns else '캄보디아어' if '캄보디아어' in df.columns else None
+    
+    if khmer_col:
+        df = df[df[khmer_col] != '']
     return df
 
 processed_df = process_sheet_data(all_sheets[selected_sheet])
@@ -318,7 +334,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
     components.html(html_code, height=40)
 
 if processed_df is not None:
-    # 💡 [검색 엔진 업그레이드: 다중 키워드 (AND) 검색 로직]
+    # [검색 엔진 업그레이드: 다중 키워드 (AND) 검색 로직]
     if search_query:
         keywords = search_query.strip().split()
         final_match_cond = pd.Series(True, index=processed_df.index)
@@ -358,9 +374,14 @@ if processed_df is not None:
     
     if st.session_state.is_continuous_playing or (0 <= target_idx < len(filtered_df)):
         if target_idx < len(filtered_df):
-            selected_num = filtered_df.iloc[target_idx].get('번호', '')
-            selected_word = filtered_df.iloc[target_idx].get('캄보디아어', '')
-            selected_kor = filtered_df.iloc[target_idx].get('해석', '')
+            # 💡 [컬럼명 유연성 확보] '번호'/'No.', '캄보디아어'/'크메르어', '해석'/'한국어 의미' 등 다양한 컬럼명 완벽 대응
+            selected_num = filtered_df.iloc[target_idx].get('번호', filtered_df.iloc[target_idx].get('No.', ''))
+            
+            khmer_col = '크메르어' if '크메르어' in filtered_df.columns else '캄보디아어' if '캄보디아어' in filtered_df.columns else ''
+            selected_word = filtered_df.iloc[target_idx].get(khmer_col, '') if khmer_col else ''
+            
+            kor_col = '해석' if '해석' in filtered_df.columns else '한국어 의미' if '한국어 의미' in filtered_df.columns else ''
+            selected_kor = filtered_df.iloc[target_idx].get(kor_col, '') if kor_col else ''
 
             if voice_options and selected_word:
                 audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
@@ -384,7 +405,7 @@ if processed_df is not None:
 
             st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
             
-            # 💡 [핵심: 인덱스 막대(슬라이더) UI 추가] 영어 학습기와 동일한 배열
+            # [인덱스 막대(슬라이더) UI]
             col_caption, col_nav, col_buttons = st.columns([0.2, 0.45, 0.35])
             
             with col_caption:
@@ -405,7 +426,7 @@ if processed_df is not None:
         st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
         st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목</div>", unsafe_allow_html=True)
 
-    # 💡 [고정 크기 윈도윙 (Fixed-Size Dynamic Windowing)]
+    # [고정 크기 윈도윙 (Fixed-Size Dynamic Windowing)]
     WINDOW_TOTAL = 15
     WINDOW_HALF = WINDOW_TOTAL // 2
     
