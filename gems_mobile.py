@@ -76,8 +76,8 @@ with col_v3:
 
 voice_options = []
 if use_google: voice_options.append("Google (여성)")
-if use_edge_m: voice_options.append("Edge 남성 (Piseth Neural)")
-if use_edge_f: voice_options.append("Edge 여성 (Sreymom Neural)")
+if use_edge_m: voice_options.append("MS Edge (남성)")
+if use_edge_f: voice_options.append("MS Edge (여성)")
 
 if not voice_options:
     st.warning("⚠️ 재생할 목소리를 최소 1개 이상 체크해 주세요.")
