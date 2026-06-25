@@ -67,17 +67,19 @@ st.markdown("🗣️ **음성 종류를 선택하세요:**")
 # 컬럼 비율 조정: 두 번째 열의 폭을 줄여 'Edge 여성' 문구가 앞쪽으로 당겨지도록 조정했습니다.
 col_v1, col_v2, col_v3, _ = st.columns([1.2, 1.2, 1.2, 2.4])
 
+# 💡 [배치 순서 변경] Google 여성을 마지막으로 배치합니다.
 with col_v1:
-    use_google = st.checkbox("Google (여성)", value=True)
-with col_v2:
     use_edge_m = st.checkbox("MS Edge (남성)")
-with col_v3:
+with col_v2:
     use_edge_f = st.checkbox("MS Edge (여성)")
+with col_v3:
+    use_google = st.checkbox("Google (여성)", value=True)
 
+# 💡 [재생 순서 변경] 리스트에 담는 순서가 재생 순서이므로 화면과 동일하게 맞춥니다.
 voice_options = []
-if use_google: voice_options.append("Google (여성)")
 if use_edge_m: voice_options.append("MS Edge (남성)")
 if use_edge_f: voice_options.append("MS Edge (여성)")
+if use_google: voice_options.append("Google (여성)")
 
 if not voice_options:
     st.warning("⚠️ 재생할 목소리를 최소 1개 이상 체크해 주세요.")
@@ -257,8 +259,7 @@ def generate_multiple_audios(khmer_text, selected_options, edge_rate, gtts_slow)
                 
     return audio_results, error_messages
 
-# 💡 [구조 대혁신] st.columns 100% 제거. 
-# 안내 캡션과 버튼들을 단일 HTML에 통째로 묶어 높이와 너비 붕괴를 원천적으로 차단합니다!
+# 💡 [모바일 완벽 호환 버튼 통합 시스템] 연속 재생 버튼과 일반 재생 버튼을 하나로 묶었습니다.
 def play_sequential_audio(audio_bytes_list, total_items, is_continuous=False):
     b64_audios = []
     if audio_bytes_list:
