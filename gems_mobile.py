@@ -68,11 +68,11 @@ st.markdown("🗣️ **음성 종류를 선택하세요:**")
 col_v1, col_v2, col_v3, _ = st.columns([1.2, 1.2, 1.2, 2.4])
 
 with col_v1:
-    use_google = st.checkbox("MS Edge (남성)", value=True)
+    use_google = st.checkbox("Google (여성)", value=True)
 with col_v2:
-    use_edge_m = st.checkbox("MS Edge (여성)")
+    use_edge_m = st.checkbox("MS Edge (남성)")
 with col_v3:
-    use_edge_f = st.checkbox("Google (여성)")
+    use_edge_f = st.checkbox("MS Edge (여성)")
 
 voice_options = []
 if use_google: voice_options.append("Google (여성)")
@@ -257,8 +257,9 @@ def generate_multiple_audios(khmer_text, selected_options, edge_rate, gtts_slow)
                 
     return audio_results, error_messages
 
-# 💡 [모바일 완벽 호환 버튼 통합 시스템] 연속 재생 버튼과 일반 재생 버튼을 하나로 묶었습니다.
-def play_sequential_audio(audio_bytes_list, is_continuous=False):
+# 💡 [구조 대혁신] st.columns 100% 제거. 
+# 안내 캡션과 버튼들을 단일 HTML에 통째로 묶어 높이와 너비 붕괴를 원천적으로 차단합니다!
+def play_sequential_audio(audio_bytes_list, total_items, is_continuous=False):
     b64_audios = []
     if audio_bytes_list:
         for ab in audio_bytes_list:
@@ -267,34 +268,46 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
 
     js_array = str(b64_audios).replace("'", '"')
     
-    # 상태별 텍스트 및 컬러 정의
     btn_text = "🔊 연속 재생중" if is_continuous else "🔊 재생중"
     btn_color = "#198754"
-    
     cont_text = "⏹️ 중지" if is_continuous else "⏭️ 연속"
     cont_color = "#dc3545" if is_continuous else "#212529"
     
-    # 💡 [디자인 완벽 일치] 두 버튼이 절대 떨어지지 않고 모바일에서도 밀리지 않게 Flexbox로 고정결합 (gap: 8px)
     html_code = f"""
     <style>
         body {{
             margin: 0;
             padding: 0;
             overflow: hidden;
+            font-family: "Noto Sans Khmer", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }}
+        #mainWrapper {{
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            width: 100%;
+            height: 45px; /* 💡 높이를 바위처럼 단단하게 45px로 영구 고정 (테이블 튐 원천 차단) */
+            gap: 15px; /* 텍스트와 버튼 사이 간격 */
+            box-sizing: border-box;
+        }}
+        #caption {{
+            font-size: 14px;
+            color: gray;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis; /* 💡 스마트폰 폭이 좁으면 문구 뒷부분이 ...으로 자연스럽게 양보됨 */
+            flex-shrink: 1; 
         }}
         #btnContainer {{
             display: flex;
-            gap: 8px; /* 버튼 사이의 간격을 좁게 고정 */
-            justify-content: flex-start; /* 좌측으로 바짝 밀착 */
-            align-items: center;
-            width: 100%;
+            gap: 8px; /* 버튼 사이 간격 */
+            flex-shrink: 0; /* 💡 버튼 공간은 1픽셀도 양보 불가 (글씨 밀림, 버튼 잘림 완벽 차단) */
         }}
         .custom-btn {{
-            font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            font-size: 16px;
+            font-size: 15px;
             color: #ffffff;
-            padding: 0 14px;
-            height: 38.4px; /* 스트림릿 네이티브 버튼과 동일한 높이 */
+            padding: 0 16px;
+            height: 38.4px;
             display: inline-flex;
             justify-content: center;
             align-items: center;
@@ -304,29 +317,24 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
             box-sizing: border-box;
             user-select: none;
             line-height: 1;
-            white-space: nowrap; /* 💡 스마트폰에서 글씨가 아래로 밀리는 현상 완벽 방지 */
+            white-space: nowrap; /* 💡 내부 글씨 절대 줄바꿈 불가 */
+            flex-shrink: 0; /* 버튼 자체 축소 불가 */
             border: 1px solid transparent;
         }}
-        .custom-btn:hover {{
-            filter: brightness(0.85); 
-        }}
-        .custom-btn:active {{
-            transform: scale(0.98);
-        }}
-        #contBtn {{
-            background-color: {cont_color};
-            border-color: {cont_color};
-        }}
-        #playBtn {{
-            background-color: {btn_color};
-            border-color: {btn_color};
-        }}
+        .custom-btn:hover {{ filter: brightness(0.85); }}
+        .custom-btn:active {{ transform: scale(0.98); }}
+        #contBtn {{ background-color: {cont_color}; border-color: {cont_color}; }}
+        #playBtn {{ background-color: {btn_color}; border-color: {btn_color}; }}
     </style>
 
-    <div id="btnContainer">
-        <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
-        <div id="contBtn" class="custom-btn">{cont_text}</div>
-        <div id="playBtn" class="custom-btn">{btn_text}</div>
+    <div id="mainWrapper">
+        <!-- 안내 캡션을 Python st.markdown 대신 HTML 내부로 끌고 들어왔습니다! -->
+        <div id="caption">총 {total_items}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>
+        <div id="btnContainer">
+            <audio id="sequentialPlayer" autoplay style="display: none;"></audio>
+            <div id="contBtn" class="custom-btn">{cont_text}</div>
+            <div id="playBtn" class="custom-btn">{btn_text}</div>
+        </div>
     </div>
     
     <script>
@@ -337,7 +345,6 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
         var contBtn = document.getElementById("contBtn");
         var isContinuous = {'true' if is_continuous else 'false'};
 
-        // 💡 연속 재생 스위치를 숨겨진 파이썬 버튼과 연동
         contBtn.onclick = function() {{
             var buttons = window.parent.document.querySelectorAll('button');
             for(var i=0; i<buttons.length; i++) {{
@@ -354,7 +361,6 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
             playBtn.style.borderColor = "{btn_color}"; 
         }}
 
-        // 오디오가 있을 때만 재생 로직 활성화
         if(audios.length > 0) {{
             playBtn.onclick = function() {{
                 if (player.paused) player.play();
@@ -366,9 +372,11 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
             var playPromise = player.play();
             if (playPromise !== undefined) {{
                 playPromise.catch(function(error) {{
-                    playBtn.innerText = "⏸️ 터치하여 시작";
-                    playBtn.style.backgroundColor = "#dc3545"; 
-                    playBtn.style.borderColor = "#dc3545";
+                    // 💡 [불필요한 에러 화면 삭제] 브라우저가 자동 재생을 막더라도 
+                    // 빨간색 경고창 띄우지 않고 얌전하게 '재생 대기' 상태로 표시합니다.
+                    playBtn.innerText = "▶️ 재생";
+                    playBtn.style.backgroundColor = "#0d6efd"; // 기본 파란색
+                    playBtn.style.borderColor = "#0d6efd";
                 }});
             }}
 
@@ -399,7 +407,6 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
                 }}
             }};
         }} else {{
-            // 오디오가 없는 경우 예외 처리
             playBtn.innerText = "⚠️ 음성 없음";
             playBtn.style.backgroundColor = "#6c757d";
             playBtn.style.borderColor = "#6c757d";
@@ -407,8 +414,8 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
         }}
     </script>
     """
-    
-    components.html(html_code, height=40)
+    # 💡 높이 45px을 강제 할당하여 테이블이 올라왔다 내려갔다 하는 현상 원천 차단
+    components.html(html_code, height=45)
 
 if processed_df is not None:
     if search_query:
@@ -441,17 +448,11 @@ if processed_df is not None:
             st.session_state.last_clicked_row = None
 
     target_idx = st.session_state.current_play_idx
-
-    # =================================================================================
-    # 💡 [구조 혁신: Layout Shift 원천 차단 (표 튐 버그 완벽 해결)]
-    # 이전 방식은 표를 먼저 그리고 빈공간을 예약한 뒤, 나중에 버튼을 쑤셔 넣는 방식이었습니다.
-    # 이제는 모든 내부 데이터 처리(오디오 생성)를 백그라운드에서 먼저 끝마친 후, 
-    # 눈에 보이는 UI를 "단어 박스 ➡️ 버튼 ➡️ 하단 표"의 정순서로 차곡차곡 위에서부터 아래로 한 번에 찍어냅니다.
-    # =================================================================================
+    player_container = st.container()
     
     audio_datas = []
     
-    # 1. 렌더링 전 오디오 데이터 및 단어 정보 사전 준비 (블로킹)
+    # 1. 렌더링 전 오디오 데이터 및 단어 정보 사전 준비
     if st.session_state.is_continuous_playing or (0 <= target_idx < len(filtered_df)):
         if target_idx < len(filtered_df):
             selected_num = filtered_df.iloc[target_idx]['번호']
@@ -465,7 +466,7 @@ if processed_df is not None:
                 for err in error_msgs:
                     st.error(err)
 
-            # 2. 가장 최상단: 단어 정보 박스 출력 (순차적 렌더링 시작)
+            # 2. 가장 최상단: 단어 정보 박스 출력 
             num_str = f"[{selected_num}] " if selected_num else ""
             pron_str = f"{selected_pron} " if selected_pron else ""
             box_padding = "6px 14px"
@@ -485,24 +486,16 @@ if processed_df is not None:
             </div>"""
             st.markdown(html_combined_display, unsafe_allow_html=True)
 
-            # 3. 중간 영역: 구분선, 캡션, 그리고 오디오 버튼 출력
+            # 3. 중간 영역: 고정된 높이의 캡션 + 버튼 콤보 컴포넌트 렌더링 (Layout Shift 해결)
             st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
-            col_caption, col_buttons = st.columns([0.65, 0.35])
-            
-            with col_caption:
-                st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
-                
-            with col_buttons:
-                # 중간에 비는 공간 없이 순서대로 바로 렌더링됩니다.
-                play_sequential_audio(audio_datas, is_continuous=st.session_state.is_continuous_playing)
+            play_sequential_audio(audio_datas, len(filtered_df), is_continuous=st.session_state.is_continuous_playing)
     else:
-        # 단어장 끝 도달 시 기본 UI 렌더링
+        # 단어장 끝 도달 시 기본 UI 렌더링 (동일한 45px 높이 점유)
         st.session_state.is_continuous_playing = False
         st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
-        st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목 (아래 표에서 원하는 행을 터치하세요)</div>", unsafe_allow_html=True)
+        play_sequential_audio([], len(filtered_df), is_continuous=False)
 
     # 4. 가장 하단: 데이터프레임(표) 출력
-    # 위에 있는 버튼과 텍스트 박스들이 자리를 모두 잡은 뒤, 마지막에 표를 그리기 때문에 화면이 절대 튀지 않습니다!
     display_df = filtered_df.drop(columns=['한국어', '영어']).copy()
     
     def highlight_playing_row(row):
