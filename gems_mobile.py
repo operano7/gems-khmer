@@ -65,7 +65,7 @@ if "last_clicked_row" not in st.session_state:
 # 💡 [TTS 선택 UI: 간격을 최대한 좁힌 다중 선택 가로형 체크박스]
 st.markdown("🗣️ **음성 종류를 설정하세요:**")
 # 컬럼 비율 조정: 두 번째 열의 폭을 줄여 'Edge 여성' 문구가 앞쪽으로 당겨지도록 조정했습니다.
-col_v1, col_v2, col_v3, _ = st.columns([0.6, 0.8, 0.8, 3.8])
+col_v1, col_v2, col_v3, _ = st.columns([0.8, 0.8, 0.8, 3.6])
 
 with col_v1:
     use_google = st.checkbox("Google (여성)", value=True)
