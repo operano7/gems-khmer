@@ -25,8 +25,9 @@ st.markdown("""
 
 .khmer-custom-font {
     font-family: 'Noto Sans Khmer', sans-serif !important;
-    font-size: 26pt !important; 
+    font-size: 20pt !important;
     font-weight: 700 !important;
+    line-height: normal !important;
 }
 
 div[role="radiogroup"] {
@@ -734,9 +735,9 @@ if processed_df is not None:
 
             num_str = f"[{selected_num}] " if selected_num else ""
             
-            # 💡 [여백 완벽 수정] 윗공간은 축소하고 아랫공간은 복구 (비대칭 패딩 적용)
-            box_padding = "0px 14px 12px 14px" # 상단 0px, 우측 14px, 하단 12px, 좌측 14px
-            inner_div_style = "line-height: 1.3; margin-top: -2px;" # 폰트 자체의 상단 여백 상쇄
+            # 영어 학습기와 동일한 균일한 문장 카드 여백
+            box_padding = "6px 14px"
+            inner_div_style = "line-height: normal; margin-top: 0;"
             
             unique_id = f"hidden_box_{target_idx}_{int(time.time() * 1000)}"
 
@@ -788,8 +789,8 @@ if processed_df is not None:
                 div_id = f'id="{unique_id}"' if kor_is_hidden else ""
                 html_parts.append(f'<div {div_id} style="{final_kor_style}"><div style="{inner_div_style}">{korean_content}</div></div>')
 
-            # gap을 4px로 설정하여 상자 간격 안정화
-            html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
+            # 영어 학습기와 동일한 문장 카드 간격
+            html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
             st.markdown(html_combined_display, unsafe_allow_html=True)
 
             st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
