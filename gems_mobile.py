@@ -701,10 +701,10 @@ if processed_df is not None:
             box_padding = "6px 14px"
             korean_inner_div_style = "line-height: normal; margin-top: 0;"
 
-            # Noto Sans Khmer는 글꼴 내부의 위쪽 여백(ascender 영역)이 커서
-            # 동일한 padding에서도 카드 상단이 영어보다 넓게 보임.
-            # 크메르어 카드에만 상단 보정을 적용하여 영어 학습기 수준으로 맞춘다.
-            khmer_inner_div_style = "line-height: 1.05; margin-top: -6px; margin-bottom: -2px;"
+            # 카드 자체가 flex 중앙정렬을 담당하므로,
+            # 크메르어 문장에는 비대칭 음수 여백을 주지 않는다.
+            # 이렇게 해야 카드의 위·아래 여백이 동일하게 유지된다.
+            khmer_inner_div_style = "line-height: 1.2; margin: 0; padding: 0;"
             
             unique_id = f"hidden_box_{target_idx}_{int(time.time() * 1000)}"
 
