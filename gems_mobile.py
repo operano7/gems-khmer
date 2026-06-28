@@ -396,7 +396,9 @@ def apply_fixed_patterns(df, target_col, frequent_patterns=None):
 
 processed_df = apply_fixed_patterns(processed_df, target_col=KHMER_TARGET_COL, frequent_patterns=MASTER_PATTERNS)
 
-# 고스트 렌더링 방지 및 순서 최적화
+# ==============================================================================
+# 💡 [핵심 버그 수정 완료] 중복 생성되던 버튼을 완전히 삭제하고 이곳에만 유일하게 배치합니다.
+# ==============================================================================
 if processed_df is not None:
     if search_query:
         keywords = search_query.strip().split()
@@ -415,6 +417,7 @@ if processed_df is not None:
     if st.session_state.current_play_idx >= len(filtered_df):
         st.session_state.current_play_idx = 0
 
+    # 브라우저 자바스크립트가 누를 투명 버튼 생성 (앱 전체에서 오직 이곳에만 존재함!)
     col_hidden1, col_hidden2 = st.columns(2)
     with col_hidden1:
         if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
@@ -430,6 +433,35 @@ if processed_df is not None:
         if st.button("TOGGLE_CONT_BTN_XYZ", key="toggle_cont"):
             st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
             st.rerun()
+
+    # 💡 생성된 버튼을 빛의 속도로 강제 숨김 처리하는 JS 스크립트 (즉시 실행)
+    components.html("""
+    <script>
+    function hideTriggerButtons() {
+        var targetDoc = window.parent ? window.parent.document : document;
+        var buttons = targetDoc.querySelectorAll('button');
+        buttons.forEach(function(btn) {
+            var txt = btn.innerText || "";
+            // 완벽한 일치 확인을 위해 indexOf 사용
+            if(txt.indexOf('AUTO_NEXT_BTN_XYZ') !== -1 || txt.indexOf('TOGGLE_CONT_BTN_XYZ') !== -1) {
+                btn.style.display = 'none';
+                
+                // 버튼을 감싸는 전체 기둥(Column)까지 완벽히 소멸시킴
+                var col = btn.closest('div[data-testid="column"]');
+                if(col) { 
+                    col.style.display = 'none'; 
+                    col.style.width = '0px'; 
+                    col.style.padding = '0px'; 
+                }
+                var elCont = btn.closest('div[data-testid="stElementContainer"]');
+                if(elCont) { elCont.style.display = 'none'; }
+            }
+        });
+    }
+    hideTriggerButtons();
+    setInterval(hideTriggerButtons, 50);
+    </script>
+    """, height=0, width=0)
 
 # Edge TTS 비동기 처리 엔진
 def get_edge_audio_sync(text, voice_model, rate_str):
@@ -563,7 +595,8 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
             var targetDoc = window.parent ? window.parent.document : document;
             var buttons = targetDoc.querySelectorAll('button');
             for(var i=0; i<buttons.length; i++) {{
-                if(buttons[i].innerText.trim() === 'TOGGLE_CONT_BTN_XYZ') {{
+                var txt = buttons[i].innerText || "";
+                if(txt.indexOf('TOGGLE_CONT_BTN_XYZ') !== -1) {{
                     buttons[i].click();
                     break;
                 }}
@@ -616,7 +649,8 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
                             var targetDoc = window.parent ? window.parent.document : document;
                             var buttons = targetDoc.querySelectorAll('button');
                             for(var i=0; i<buttons.length; i++) {{
-                                if(buttons[i].innerText.trim() === 'AUTO_NEXT_BTN_XYZ') {{
+                                var txt = buttons[i].innerText || "";
+                                if(txt.indexOf('AUTO_NEXT_BTN_XYZ') !== -1) {{
                                     buttons[i].click();
                                     break;
                                 }}
@@ -717,10 +751,6 @@ if processed_df is not None:
             render_korean = "한국어" in read_langs
             first_lang = read_langs[0] if read_langs else None
 
-            # 💡 [핵심 버그 수정 완결판]
-            # Streamlit 마크다운 파서가 줄바꿈과 들여쓰기를 <p>나 <pre> 태그로 렌더링하여 빈 여백을 만드는 현상을 원천 차단!
-            # HTML 코드를 단 '한 줄(One-line)'로 완전히 압축하여 주입합니다.
-
             if render_khmer:
                 khmer_html = f"<span class='khmer-custom-font' style='color: #0f5132;'>{selected_word_display}</span>"
                 if first_lang != "크메르어" and len(read_langs) == 2:
@@ -789,36 +819,3 @@ if processed_df is not None:
         key="word_table",
         height=500
     )
-
-if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
-    if st.session_state.current_play_idx + 1 < len(filtered_df):
-        st.session_state.current_play_idx += 1
-        st.rerun()
-    else:
-        st.success("🎉 단어장의 끝에 도달했습니다!")
-        st.session_state.is_continuous_playing = False
-        st.rerun()
-
-if st.button("TOGGLE_CONT_BTN_XYZ", key="toggle_cont"):
-    st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
-    st.rerun()
-
-components.html("""
-<script>
-function hideTriggerButtons() {
-    var targetDoc = window.parent ? window.parent.document : document;
-    var buttons = targetDoc.querySelectorAll('button');
-    buttons.forEach(function(btn) {
-        var btnText = btn.innerText.trim();
-        if(btnText === 'AUTO_NEXT_BTN_XYZ' || btnText === 'TOGGLE_CONT_BTN_XYZ') {
-            btn.style.display = 'none';
-            if (btn.parentElement) {
-                btn.parentElement.style.display = 'none';
-            }
-        }
-    });
-}
-hideTriggerButtons();
-setInterval(hideTriggerButtons, 100);
-</script>
-""", height=0, width=0)
