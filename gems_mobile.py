@@ -396,9 +396,7 @@ def apply_fixed_patterns(df, target_col, frequent_patterns=None):
 
 processed_df = apply_fixed_patterns(processed_df, target_col=KHMER_TARGET_COL, frequent_patterns=MASTER_PATTERNS)
 
-# ==============================================================================
-# 💡 [핵심 버그 수정 완료] 중복 생성되던 버튼을 완전히 삭제하고 이곳에만 유일하게 배치합니다.
-# ==============================================================================
+# 고스트 렌더링 방지 및 순서 최적화
 if processed_df is not None:
     if search_query:
         keywords = search_query.strip().split()
@@ -417,7 +415,6 @@ if processed_df is not None:
     if st.session_state.current_play_idx >= len(filtered_df):
         st.session_state.current_play_idx = 0
 
-    # 브라우저 자바스크립트가 누를 투명 버튼 생성 (앱 전체에서 오직 이곳에만 존재함!)
     col_hidden1, col_hidden2 = st.columns(2)
     with col_hidden1:
         if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
@@ -434,7 +431,7 @@ if processed_df is not None:
             st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
             st.rerun()
 
-    # 💡 생성된 버튼을 빛의 속도로 강제 숨김 처리하는 JS 스크립트 (즉시 실행)
+    # 생성된 버튼을 빛의 속도로 강제 숨김 처리하는 JS 스크립트
     components.html("""
     <script>
     function hideTriggerButtons() {
@@ -442,11 +439,8 @@ if processed_df is not None:
         var buttons = targetDoc.querySelectorAll('button');
         buttons.forEach(function(btn) {
             var txt = btn.innerText || "";
-            // 완벽한 일치 확인을 위해 indexOf 사용
             if(txt.indexOf('AUTO_NEXT_BTN_XYZ') !== -1 || txt.indexOf('TOGGLE_CONT_BTN_XYZ') !== -1) {
                 btn.style.display = 'none';
-                
-                // 버튼을 감싸는 전체 기둥(Column)까지 완벽히 소멸시킴
                 var col = btn.closest('div[data-testid="column"]');
                 if(col) { 
                     col.style.display = 'none'; 
@@ -751,25 +745,33 @@ if processed_df is not None:
             render_korean = "한국어" in read_langs
             first_lang = read_langs[0] if read_langs else None
 
-            if render_khmer:
-                khmer_html = f"<span class='khmer-custom-font' style='color: #0f5132;'>{selected_word_display}</span>"
-                if first_lang != "크메르어" and len(read_langs) == 2:
+            # 💡 [핵심 업데이트] 영어 학습기와 완벽하게 동일한 구조 적용
+            # 1. 먼저 재생되는 언어(메인): 파란색 상자(아래쪽), 인덱스 번호 부착, 항상 표시
+            # 2. 나중에 재생되는 언어(보조): 초록색 상자(위쪽), 인덱스 번호 없음, 2개 언어일 때 숨김 처리
+
+            if first_lang == "한국어":
+                primary_html = f"<span style='color: #3b82f6; font-size: 15pt; font-weight: bold;'>{num_str}{selected_kor}</span>"
+                secondary_html = f"<span class='khmer-custom-font' style='color: #0f5132;'>{selected_word_display}</span>"
+                has_primary = render_korean
+                has_secondary = render_khmer
+            else:
+                primary_html = f"<span class='khmer-custom-font' style='color: #3b82f6;'>{num_str}{selected_word_display}</span>"
+                secondary_html = f"<span style='color: #0f5132; font-size: 15pt; font-weight: bold;'>{selected_kor}</span>"
+                has_primary = render_khmer
+                has_secondary = render_korean
+
+            if has_secondary:
+                if len(read_langs) == 2:
                     style = f"display: none; opacity: 0; padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
                     div_id = f'id="{unique_id}"'
                 else:
                     style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
                     div_id = ""
-                html_parts.append(f'<div {div_id} style="{style}"><div style="line-height: 1.5; padding-top: 1px;">{khmer_html}</div></div>')
+                html_parts.append(f'<div {div_id} style="{style}"><div style="line-height: 1.5; padding-top: 1px;">{secondary_html}</div></div>')
 
-            if render_korean:
-                korean_html = f"<span style='color: #3b82f6; font-size: 15pt; font-weight: bold;'>{num_str}{selected_kor}</span>"
-                if first_lang != "한국어" and len(read_langs) == 2:
-                    style = f"display: none; opacity: 0; padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
-                    div_id = f'id="{unique_id}"'
-                else:
-                    style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
-                    div_id = ""
-                html_parts.append(f'<div {div_id} style="{style}"><div style="line-height: 1.5; padding-top: 1px;">{korean_html}</div></div>')
+            if has_primary:
+                style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
+                html_parts.append(f'<div style="{style}"><div style="line-height: 1.5; padding-top: 1px;">{primary_html}</div></div>')
 
             html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
             st.markdown(html_combined_display, unsafe_allow_html=True)
@@ -819,3 +821,16 @@ if processed_df is not None:
         key="word_table",
         height=500
     )
+
+if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
+    if st.session_state.current_play_idx + 1 < len(filtered_df):
+        st.session_state.current_play_idx += 1
+        st.rerun()
+    else:
+        st.success("🎉 단어장의 끝에 도달했습니다!")
+        st.session_state.is_continuous_playing = False
+        st.rerun()
+
+if st.button("TOGGLE_CONT_BTN_XYZ", key="toggle_cont"):
+    st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
+    st.rerun()
