@@ -746,35 +746,55 @@ if processed_df is not None:
             render_korean = "한국어" in read_langs
             first_lang = read_langs[0] if read_langs else None
 
-            # 💡 [핵심 업데이트] 영어 학습기와 완벽하게 동일한 구조 적용
-            # 1. 먼저 재생되는 언어(메인): 파란색 상자(아래쪽), 인덱스 번호 부착, 항상 표시
-            # 2. 나중에 재생되는 언어(보조): 초록색 상자(위쪽), 인덱스 번호 없음, 2개 언어일 때 숨김 처리
+            # 💡 [UI 구조 및 폰트 통합]
+            # 1. 크메르어는 항상 위, 한국어는 항상 아래 고정
+            # 2. 먼저 재생되는 언어(메인)는 파란색+인덱스 번호, 보조 언어는 초록색+숨김
+            # 3. 언어에 상관없이 모두 '큰 글씨(20pt / 26pt)'로 통일
 
-            if first_lang == "한국어":
-                primary_html = f"<span style='color: #3b82f6; font-size: 15pt; font-weight: bold;'>{num_str}{selected_kor}</span>"
-                secondary_html = f"<span class='khmer-custom-font' style='color: #0f5132;'>{selected_word_display}</span>"
-                has_primary = render_korean
-                has_secondary = render_khmer
+            blue_bg = f"padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
+            green_bg = f"padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
+            hidden_style = f"display: none; opacity: 0; "
+
+            blue_text = "#3b82f6"
+            green_text = "#0f5132"
+
+            num_html_blue = f"<span style='color: {blue_text}; font-size: 20pt; font-weight: bold;'>{num_str}</span>" if num_str else ""
+
+            # 크메르어 설정 (항상 상단)
+            if first_lang == "크메르어":
+                khm_box_style = blue_bg
+                khm_text_color = blue_text
+                khm_num = num_html_blue
+                khm_is_hidden = False
             else:
-                # 💡 [수정] 번호 대괄호([123])는 크메르어 폰트의 영향을 받지 않고 크고 시원하게 보이도록 분리하여 20pt로 고정
-                num_html = f"<span style='color: #3b82f6; font-size: 20pt; font-weight: bold;'>{num_str}</span>" if num_str else ""
-                primary_html = f"{num_html}<span class='khmer-custom-font' style='color: #3b82f6;'>{selected_word_display}</span>"
-                secondary_html = f"<span style='color: #0f5132; font-size: 15pt; font-weight: bold;'>{selected_kor}</span>"
-                has_primary = render_khmer
-                has_secondary = render_korean
+                khm_box_style = green_bg
+                khm_text_color = green_text
+                khm_num = ""
+                khm_is_hidden = (len(read_langs) == 2)
 
-            if has_secondary:
-                if len(read_langs) == 2:
-                    style = f"display: none; opacity: 0; padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
-                    div_id = f'id="{unique_id}"'
-                else:
-                    style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
-                    div_id = ""
-                html_parts.append(f'<div {div_id} style="{style}"><div style="line-height: 1.5; padding-top: 1px;">{secondary_html}</div></div>')
+            # 한국어 설정 (항상 하단)
+            if first_lang == "한국어":
+                kor_box_style = blue_bg
+                kor_text_color = blue_text
+                kor_num = num_html_blue
+                kor_is_hidden = False
+            else:
+                kor_box_style = green_bg
+                kor_text_color = green_text
+                kor_num = ""
+                kor_is_hidden = (len(read_langs) == 2)
 
-            if has_primary:
-                style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
-                html_parts.append(f'<div style="{style}"><div style="line-height: 1.5; padding-top: 1px;">{primary_html}</div></div>')
+            if render_khmer:
+                khmer_content = f"{khm_num}<span class='khmer-custom-font' style='color: {khm_text_color};'>{selected_word_display}</span>"
+                final_khm_style = hidden_style + khm_box_style if khm_is_hidden else khm_box_style
+                div_id = f'id="{unique_id}"' if khm_is_hidden else ""
+                html_parts.append(f'<div {div_id} style="{final_khm_style}"><div style="line-height: 1.5; padding-top: 1px;">{khmer_content}</div></div>')
+
+            if render_korean:
+                korean_content = f"{kor_num}<span style='color: {kor_text_color}; font-size: 20pt; font-weight: bold;'>{selected_kor}</span>"
+                final_kor_style = hidden_style + kor_box_style if kor_is_hidden else kor_box_style
+                div_id = f'id="{unique_id}"' if kor_is_hidden else ""
+                html_parts.append(f'<div {div_id} style="{final_kor_style}"><div style="line-height: 1.5; padding-top: 1px;">{korean_content}</div></div>')
 
             html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
             st.markdown(html_combined_display, unsafe_allow_html=True)
@@ -837,3 +857,23 @@ if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
 if st.button("TOGGLE_CONT_BTN_XYZ", key="toggle_cont"):
     st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
     st.rerun()
+
+components.html("""
+<script>
+function hideTriggerButtons() {
+    var targetDoc = window.parent ? window.parent.document : document;
+    var buttons = targetDoc.querySelectorAll('button');
+    buttons.forEach(function(btn) {
+        var btnText = btn.innerText.trim();
+        if(btnText === 'AUTO_NEXT_BTN_XYZ' || btnText === 'TOGGLE_CONT_BTN_XYZ') {
+            btn.style.display = 'none';
+            if (btn.parentElement) {
+                btn.parentElement.style.display = 'none';
+            }
+        }
+    });
+}
+hideTriggerButtons();
+setInterval(hideTriggerButtons, 100);
+</script>
+""", height=0, width=0)
