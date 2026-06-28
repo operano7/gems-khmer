@@ -754,9 +754,8 @@ if processed_df is not None:
 
     display_df = filtered_df.copy()
     
-    # 표(Table) 내부 지저분한 HTML 태그 노출 방지, 대신 HtmlColumn을 이용하여 패턴 색상만 렌더링
+    # 표(Table) 안에는 HTML 태그가 보이지 않도록 디스플레이용 컬럼을 삭제하여 순수 텍스트만 유지합니다.
     if KHMER_TARGET_COL and f'{KHMER_TARGET_COL}_display' in display_df.columns:
-        display_df[KHMER_TARGET_COL] = display_df[f'{KHMER_TARGET_COL}_display']
         display_df = display_df.drop(columns=[f'{KHMER_TARGET_COL}_display'])
         
     st.session_state.current_display_indices = display_df.index.tolist()
@@ -768,11 +767,7 @@ if processed_df is not None:
         elif KHMER_TARGET_COL:
             display_df.loc[target_idx, KHMER_TARGET_COL] = f"▶ {display_df.loc[target_idx, KHMER_TARGET_COL]}"
 
-    # HtmlColumn을 통해 데이터프레임 내부에서도 오렌지색 패턴 강조가 작동하도록 설정
-    col_config = {}
-    if KHMER_TARGET_COL:
-        col_config[KHMER_TARGET_COL] = st.column_config.HtmlColumn(f"{KHMER_TARGET_COL} (패턴 강조)")
-
+    # 에러를 발생시켰던 가상의 HtmlColumn 코드를 완벽히 제거하고 안전하게 렌더링합니다.
     selection = st.dataframe(
         display_df,
         use_container_width=True,
@@ -780,8 +775,7 @@ if processed_df is not None:
         on_select="rerun",
         selection_mode="single-row",
         key="word_table",
-        height=500,
-        column_config=col_config
+        height=500
     )
 
 if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
