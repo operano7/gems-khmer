@@ -735,9 +735,14 @@ if processed_df is not None:
 
             num_str = f"[{selected_num}] " if selected_num else ""
             
-            # 영어 학습기와 동일한 균일한 문장 카드 여백
+            # 문장 카드 기본 여백은 영어 학습기 기준으로 유지
             box_padding = "6px 14px"
-            inner_div_style = "line-height: normal; margin-top: 0;"
+            korean_inner_div_style = "line-height: normal; margin-top: 0;"
+
+            # Noto Sans Khmer는 글꼴 내부의 위쪽 여백(ascender 영역)이 커서
+            # 동일한 padding에서도 카드 상단이 영어보다 넓게 보임.
+            # 크메르어 카드에만 상단 보정을 적용하여 영어 학습기 수준으로 맞춘다.
+            khmer_inner_div_style = "line-height: 1.05; margin-top: -6px; margin-bottom: -2px;"
             
             unique_id = f"hidden_box_{target_idx}_{int(time.time() * 1000)}"
 
@@ -781,13 +786,13 @@ if processed_df is not None:
                 khmer_content = f"{khm_num}<span class='khmer-custom-font' style='color: {khm_text_color};'>{selected_word_display}</span>"
                 final_khm_style = hidden_style + khm_box_style if khm_is_hidden else khm_box_style
                 div_id = f'id="{unique_id}"' if khm_is_hidden else ""
-                html_parts.append(f'<div {div_id} style="{final_khm_style}"><div style="{inner_div_style}">{khmer_content}</div></div>')
+                html_parts.append(f'<div {div_id} style="{final_khm_style}"><div style="{khmer_inner_div_style}">{khmer_content}</div></div>')
 
             if render_korean:
                 korean_content = f"{kor_num}<span style='color: {kor_text_color}; font-size: 20pt; font-weight: bold;'>{selected_kor}</span>"
                 final_kor_style = hidden_style + kor_box_style if kor_is_hidden else kor_box_style
                 div_id = f'id="{unique_id}"' if kor_is_hidden else ""
-                html_parts.append(f'<div {div_id} style="{final_kor_style}"><div style="{inner_div_style}">{korean_content}</div></div>')
+                html_parts.append(f'<div {div_id} style="{final_kor_style}"><div style="{korean_inner_div_style}">{korean_content}</div></div>')
 
             # 영어 학습기와 동일한 문장 카드 간격
             html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
