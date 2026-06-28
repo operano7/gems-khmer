@@ -744,20 +744,31 @@ if processed_df is not None:
                 kor_num = ""
                 kor_is_hidden = (len(read_langs) == 2)
 
+            # 각 언어 카드 HTML을 먼저 만든 뒤,
+            # 파란색(먼저 재생되는 언어) 카드를 항상 위에 배치한다.
+            khmer_box_html = ""
+            korean_box_html = ""
+
             if render_khmer:
                 khmer_content = f"{khm_num}<span class='khmer-custom-font' style='color: {khm_text_color};'>{selected_word_display}</span>"
                 final_khm_style = hidden_style + khm_box_style if khm_is_hidden else khm_box_style
                 div_id = f'id="{unique_id}"' if khm_is_hidden else ""
-                html_parts.append(f'<div {div_id} style="{final_khm_style}"><div style="{khmer_inner_div_style}">{khmer_content}</div></div>')
+                khmer_box_html = f'<div {div_id} style="{final_khm_style}"><div style="{khmer_inner_div_style}">{khmer_content}</div></div>'
 
             if render_korean:
                 korean_content = f"{kor_num}<span style='color: {kor_text_color}; font-size: 20pt; font-weight: bold;'>{selected_kor}</span>"
                 final_kor_style = hidden_style + kor_box_style if kor_is_hidden else kor_box_style
                 div_id = f'id="{unique_id}"' if kor_is_hidden else ""
-                html_parts.append(f'<div {div_id} style="{final_kor_style}"><div style="{korean_inner_div_style}">{korean_content}</div></div>')
+                korean_box_html = f'<div {div_id} style="{final_kor_style}"><div style="{korean_inner_div_style}">{korean_content}</div></div>'
+
+            # 파란색 카드 = first_lang. 화면에서도 항상 첫 번째(위쪽)로 표시.
+            if first_lang == "한국어":
+                html_parts = [korean_box_html, khmer_box_html]
+            else:
+                html_parts = [khmer_box_html, korean_box_html]
 
             # 영어 학습기와 동일한 문장 카드 간격
-            html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
+            html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{"".join(part for part in html_parts if part)}</div>'
             st.markdown(html_combined_display, unsafe_allow_html=True)
 
             st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
