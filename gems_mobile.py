@@ -63,6 +63,17 @@ if "current_play_idx" not in st.session_state:
 if "last_clicked_row" not in st.session_state:
     st.session_state.last_clicked_row = None
 
+# 읽어줄 언어 선택 UI
+st.markdown("📖 **읽어줄 언어를 선택하세요:**")
+read_lang_choice = st.radio(
+    "읽어줄 언어",
+    options=["크메르어", "한국어"],
+    index=0,
+    horizontal=True,
+    label_visibility="collapsed"
+)
+st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
+
 # TTS 선택 UI
 st.markdown("🗣️ **음성 종류를 선택하세요:**")
 col_v1, col_v2, col_v3, _ = st.columns([1.2, 1.2, 1.2, 2.4])
@@ -102,6 +113,25 @@ elif speed_choice == "조금 느리게 (0.8x)":
 else:
     final_edge_rate_str = "+0%"
     final_gtts_slow = False
+
+st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
+
+# 연속 재생 대기 시간 선택 UI
+st.markdown("⏱️ **연속 재생 대기 시간을 선택하세요:**")
+delay_choice = st.radio(
+    "대기 시간 선택",
+    options=["1초", "3초", "5초"],
+    index=0,
+    horizontal=True,
+    label_visibility="collapsed"
+)
+
+if delay_choice == "1초":
+    delay_ms = 1000
+elif delay_choice == "3초":
+    delay_ms = 3000
+else:
+    delay_ms = 5000
 
 st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
 
@@ -149,9 +179,7 @@ with col_search_input:
     search_query = st.text_input("🔍 검색어 입력:", "")
 
 def process_sheet_data(df):
-    # 💡 [헤더 자동 보정 엔진] 엑셀의 첫 줄이 병합되어 있거나 카테고리 제목일 경우를 대비해 실제 컬럼명을 찾습니다.
     if '크메르어' not in df.columns and '캄보디아어' not in df.columns:
-        # 상위 5개 행 중에서 '크메르어'나 '캄보디아어'가 포함된 행을 찾아서 진짜 헤더로 설정
         for i in range(min(5, len(df))):
             row_vals = df.iloc[i].astype(str).str.strip().tolist()
             if '크메르어' in row_vals or '캄보디아어' in row_vals:
@@ -159,7 +187,6 @@ def process_sheet_data(df):
                 df = df.iloc[i+1:].reset_index(drop=True)
                 break
                 
-    # 컬럼명 공백 제거
     df.columns = [str(c).strip() for c in df.columns]
 
     def clean_text(text):
@@ -171,7 +198,6 @@ def process_sheet_data(df):
     for c in df.columns:
         df[c] = df[c].apply(clean_text)
     
-    # 💡 '캄보디아어' 또는 '크메르어' 컬럼을 유연하게 찾아 필터링
     khmer_col = '크메르어' if '크메르어' in df.columns else '캄보디아어' if '캄보디아어' in df.columns else None
     
     if khmer_col:
@@ -198,22 +224,27 @@ def get_edge_audio_sync(text, voice_model, rate_str):
     return result
 
 @st.cache_data(show_spinner=False)
-def generate_multiple_audios(eng_text, selected_options, edge_rate, gtts_slow):
+def generate_multiple_audios(text_to_read, selected_options, edge_rate, gtts_slow, read_lang):
     audio_results = []
     error_messages = []
     
     for opt in selected_options:
         if "Edge" in opt:
             try:
-                voice_model = "km-KH-PisethNeural" if "남성" in opt else "km-KH-SreymomNeural"
-                audio_content = get_edge_audio_sync(eng_text, voice_model, edge_rate)
+                if read_lang == "한국어":
+                    voice_model = "ko-KR-InJoonNeural" if "남성" in opt else "ko-KR-SunHiNeural"
+                else:
+                    voice_model = "km-KH-PisethNeural" if "남성" in opt else "km-KH-SreymomNeural"
+                    
+                audio_content = get_edge_audio_sync(text_to_read, voice_model, edge_rate)
                 audio_results.append(audio_content)
             except Exception as e:
                 error_messages.append(f"Edge TTS ({opt}) 에러: {str(e)}")
         else:
             try:
                 from gtts import gTTS
-                tts = gTTS(text=eng_text, lang='km', slow=gtts_slow)
+                lang_code = 'ko' if read_lang == "한국어" else 'km'
+                tts = gTTS(text=text_to_read, lang=lang_code, slow=gtts_slow)
                 fp = io.BytesIO()
                 tts.write_to_fp(fp)
                 audio_results.append(fp.getvalue())
@@ -222,7 +253,7 @@ def generate_multiple_audios(eng_text, selected_options, edge_rate, gtts_slow):
                 
     return audio_results, error_messages
 
-def play_sequential_audio(audio_bytes_list, is_continuous=False):
+def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000):
     b64_audios = []
     if audio_bytes_list:
         for ab in audio_bytes_list:
@@ -264,6 +295,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
         var playBtn = document.getElementById("playBtn");
         var contBtn = document.getElementById("contBtn");
         var isContinuous = {'true' if is_continuous else 'false'};
+        var delayMs = {delay_ms};
 
         playBtn.innerText = isContinuous ? "🔊 연속 재생중" : "▶️ 재생";
         playBtn.style.backgroundColor = isContinuous ? "#198754" : "#0d6efd";
@@ -303,18 +335,44 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
             player.onended = function() {{
                 currentIdx++;
                 if(currentIdx < audios.length) {{
-                    player.src = audios[currentIdx];
-                    player.play();
+                    // 💡 [안정화 업데이트] 이전 오디오 잔상(Glitch) 원천 차단
+                    // src를 완전히 비우고 물리적으로 150ms 대기하여 버퍼를 플러시(Flush) 합니다.
+                    player.pause();
+                    player.currentTime = 0;
+                    player.removeAttribute('src');
+                    player.load();
+                    
+                    setTimeout(function() {{
+                        player.src = audios[currentIdx];
+                        player.load();
+                        var nextPlayPromise = player.play();
+                        if (nextPlayPromise !== undefined) {{
+                            nextPlayPromise.catch(function(e) {{ console.log(e); }});
+                        }}
+                    }}, 150); 
                 }} else {{
                     if (isContinuous) {{
-                        var targetDoc = window.parent ? window.parent.document : document;
-                        var buttons = targetDoc.querySelectorAll('button');
-                        for(var i=0; i<buttons.length; i++) {{
-                            if(buttons[i].innerText.trim() === 'AUTO_NEXT_BTN_XYZ') {{
-                                buttons[i].click();
-                                break;
+                        // 다음 행으로 넘어가기 전에도 안전하게 오디오 초기화
+                        player.pause();
+                        player.currentTime = 0;
+                        player.removeAttribute('src');
+                        player.load();
+                        
+                        playBtn.innerText = "⏳ 다음 문장 대기중...";
+                        playBtn.style.backgroundColor = "#ffc107";
+                        playBtn.style.borderColor = "#ffc107";
+                        playBtn.style.color = "#000000";
+                        
+                        setTimeout(function() {{
+                            var targetDoc = window.parent ? window.parent.document : document;
+                            var buttons = targetDoc.querySelectorAll('button');
+                            for(var i=0; i<buttons.length; i++) {{
+                                if(buttons[i].innerText.trim() === 'AUTO_NEXT_BTN_XYZ') {{
+                                    buttons[i].click();
+                                    break;
+                                }}
                             }}
-                        }}
+                        }}, delayMs);
                     }} else {{
                         playBtn.innerText = "▶️ 재생"; 
                         playBtn.style.backgroundColor = "#0d6efd"; 
@@ -334,7 +392,6 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False):
     components.html(html_code, height=40)
 
 if processed_df is not None:
-    # [검색 엔진 업그레이드: 다중 키워드 (AND) 검색 로직]
     if search_query:
         keywords = search_query.strip().split()
         final_match_cond = pd.Series(True, index=processed_df.index)
@@ -374,7 +431,6 @@ if processed_df is not None:
     
     if st.session_state.is_continuous_playing or (0 <= target_idx < len(filtered_df)):
         if target_idx < len(filtered_df):
-            # 💡 [컬럼명 유연성 확보] '번호'/'No.', '캄보디아어'/'크메르어', '해석'/'한국어 의미' 등 다양한 컬럼명 완벽 대응
             selected_num = filtered_df.iloc[target_idx].get('번호', filtered_df.iloc[target_idx].get('No.', ''))
             
             khmer_col = '크메르어' if '크메르어' in filtered_df.columns else '캄보디아어' if '캄보디아어' in filtered_df.columns else ''
@@ -383,8 +439,10 @@ if processed_df is not None:
             kor_col = '해석' if '해석' in filtered_df.columns else '한국어 의미' if '한국어 의미' in filtered_df.columns else ''
             selected_kor = filtered_df.iloc[target_idx].get(kor_col, '') if kor_col else ''
 
-            if voice_options and selected_word:
-                audio_datas, error_msgs = generate_multiple_audios(selected_word, voice_options, final_edge_rate_str, final_gtts_slow)
+            text_to_read = selected_kor if read_lang_choice == "한국어" else selected_word
+
+            if voice_options and text_to_read:
+                audio_datas, error_msgs = generate_multiple_audios(text_to_read, voice_options, final_edge_rate_str, final_gtts_slow, read_lang_choice)
                 for err in error_msgs:
                     st.error(err)
 
@@ -405,7 +463,6 @@ if processed_df is not None:
 
             st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
             
-            # [인덱스 막대(슬라이더) UI]
             col_caption, col_nav, col_buttons = st.columns([0.2, 0.45, 0.35])
             
             with col_caption:
@@ -420,48 +477,36 @@ if processed_df is not None:
                     st.rerun()
                     
             with col_buttons:
-                play_sequential_audio(audio_datas, is_continuous=st.session_state.is_continuous_playing)
+                play_sequential_audio(audio_datas, is_continuous=st.session_state.is_continuous_playing, delay_ms=delay_ms)
     else:
         st.session_state.is_continuous_playing = False
         st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
         st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목</div>", unsafe_allow_html=True)
 
-    # [고정 크기 윈도윙 (Fixed-Size Dynamic Windowing)]
-    WINDOW_TOTAL = 15
-    WINDOW_HALF = WINDOW_TOTAL // 2
+    display_df = filtered_df.copy()
     
-    start_row = target_idx - WINDOW_HALF
-    end_row = target_idx + WINDOW_HALF + 1
-    
-    if start_row < 0:
-        offset = abs(start_row)
-        start_row = 0
-        end_row = min(len(filtered_df), end_row + offset)
+    if '영어_display' in display_df.columns:
+        display_df = display_df.drop(columns=['영어_display'])
+    if khmer_col and f'{khmer_col}_display' in display_df.columns:
+        display_df = display_df.drop(columns=[f'{khmer_col}_display'])
         
-    elif end_row > len(filtered_df):
-        offset = end_row - len(filtered_df)
-        end_row = len(filtered_df)
-        start_row = max(0, start_row - offset)
-    
-    display_df = filtered_df.iloc[start_row:end_row].copy()
-    
     st.session_state.current_display_indices = display_df.index.tolist()
-    
-    def highlight_playing_row(df_to_style):
-        styles = pd.DataFrame('', index=df_to_style.index, columns=df_to_style.columns)
-        if target_idx in styles.index:
-            styles.loc[target_idx, :] = 'background-color: rgba(25, 135, 84, 0.25);'
-        return styles
 
-    styled_df = display_df.style.apply(highlight_playing_row, axis=None)
+    if target_idx in display_df.index:
+        num_col = '번호' if '번호' in display_df.columns else 'No.' if 'No.' in display_df.columns else None
+        if num_col:
+            display_df.loc[target_idx, num_col] = f"▶ {display_df.loc[target_idx, num_col]}"
+        elif khmer_col:
+            display_df.loc[target_idx, khmer_col] = f"▶ {display_df.loc[target_idx, khmer_col]}"
 
     selection = st.dataframe(
-        styled_df,
+        display_df,
         use_container_width=True,
         hide_index=True,
         on_select="rerun",
         selection_mode="single-row",
-        key="word_table"
+        key="word_table",
+        height=500
     )
 
 if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
