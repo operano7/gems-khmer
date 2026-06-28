@@ -713,8 +713,21 @@ if processed_df is not None:
             render_korean = "한국어" in read_langs
             first_lang = read_langs[0] if read_langs else None
 
-            blue_bg = f"padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
-            green_bg = f"padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
+            # 두 언어 카드의 외곽 높이를 동일하게 고정한다.
+            # 글꼴별 내부 여백 차이와 무관하게 파란색/초록색 카드가 같은 높이로 보인다.
+            common_box_layout = (
+                f"padding: {box_padding}; min-height: 62px; box-sizing: border-box; "
+                f"display: flex; align-items: center;"
+            )
+            blue_bg = (
+                f"{common_box_layout} border-radius: 0.5rem; "
+                f"background-color: rgba(59, 130, 246, 0.1); "
+                f"border: 1px solid rgba(59, 130, 246, 0.2);"
+            )
+            green_bg = (
+                f"{common_box_layout} border-radius: 0.5rem; "
+                f"background-color: #d1e7dd; border: 1px solid #badbcc;"
+            )
             hidden_style = f"display: none; opacity: 0; "
 
             blue_text = "#3b82f6"
