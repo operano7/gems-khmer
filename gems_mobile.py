@@ -348,7 +348,6 @@ def apply_fixed_patterns(df, target_col, frequent_patterns=None):
                 
                 boundary_start = r"(?<![\w'])"
                 boundary_end = r"(?![\w'])"
-                # 💡 [잘린 코드 복구] 아래 줄의 끝부분이 잘려 있었습니다!
                 regex_parts = [boundary_start + re.escape(w) + boundary_end for w in pat_words]
                 non_word_pattern = r"[^\w']*"    
                 regex_str = r'(' + non_word_pattern.join(regex_parts) + r')'
@@ -498,7 +497,6 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
     cont_text = "⏹️ 중지" if is_continuous else "⏭️ 연속"
     cont_color = "#dc3545" if is_continuous else "#212529"
     
-    # 💡 [JS 핵심 수정] 빈 공백을 지우기 위해 display: none 을 동적으로 관리합니다.
     html_code = f"""
     <style>
         body {{ margin: 0; padding: 0; overflow: hidden; }}
@@ -540,7 +538,8 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
             if (box) {{
                 box.style.transition = 'none'; 
                 box.style.opacity = '0';
-                box.style.display = 'none'; // 빈 공백 삭제
+                // 완전히 지워서 공간을 없앰
+                box.style.display = 'none'; 
             }}
         }}
 
@@ -548,11 +547,12 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
             var currentTargetDoc = window.parent ? window.parent.document : document;
             var currentHiddenBox = currentTargetDoc.getElementById(boxId);
             if (currentHiddenBox) {{
-                currentHiddenBox.style.display = 'block'; // 공간 생성
+                // 공간을 먼저 만들고 찰나의 시간 뒤에 투명도를 조절해 애니메이션 효과
+                currentHiddenBox.style.display = 'block'; 
                 setTimeout(function() {{
                     currentHiddenBox.style.transition = 'opacity 0.4s ease-in-out';
                     currentHiddenBox.style.opacity = '1';
-                }}, 20); // 렌더링 후 페이드인 애니메이션
+                }}, 20); 
             }}
         }}
 
@@ -588,13 +588,12 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
                 playBtn.innerText = isContinuous ? "🔊 연속 재생중" : "🔊 재생중";
                 playBtn.style.backgroundColor = "#198754";
                 playBtn.style.borderColor = "#198754";
+                // 2번째 언어가 재생될 때 상자를 보이게 함
                 if (index >= 1) revealSecondLanguage();
             }};
 
             player.onended = function() {{
                 currentIdx++;
-                
-                if (audios.length === 1 && currentIdx === 1) revealSecondLanguage();
 
                 if(currentIdx < audios.length) {{
                     if (langDelayMs > 0) {{
@@ -607,6 +606,9 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
                         setTimeout(function() {{ playAudio(currentIdx); }}, 50);
                     }}
                 }} else {{
+                    // 안전장치: 오디오 길이가 1이든 2든 다 끝났을 때 무조건 보임 처리 (숨김 상자가 있을 때만 동작)
+                    revealSecondLanguage(); 
+                    
                     if (isContinuous) {{
                         hideCurrentBoxInstantly();
                         playBtn.innerText = "⏳ 다음 문장 대기중...";
@@ -712,39 +714,58 @@ if processed_df is not None:
 
             num_str = f"[{selected_num}] " if selected_num else ""
             box_padding = "6px 14px"
-
-            # 💡 [핵심 수정 1] "캄보디아어 무조건 위, 한국어 무조건 아래" 절대 원칙 복구
-            # 💡 [핵심 수정 2] 파란색 한국어 텍스트에만 인덱스 번호 부착 고정
-            khmer_html = f"<span class='khmer-custom-font' style='color: #0f5132;'>{selected_word_display}</span>"
-            korean_html = f"<span style='color: #3b82f6; font-size: 15pt; font-weight: bold;'>{num_str}{selected_kor}</span>"
-
             unique_id = f"hidden_box_{target_idx}_{int(time.time() * 1000)}"
 
-            # 💡 [핵심 수정 3] 나중에 재생될 상자를 display: none 으로 설정하여 불필요한 공백을 완전히 제거합니다.
-            if read_langs and read_langs[0] == "한국어":
-                top_style = f"display: none; opacity: 0; padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
-                bottom_style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
-                hidden_id_target = "top"
-            else:
-                top_style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
-                bottom_style = f"display: none; opacity: 0; padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
-                hidden_id_target = "bottom"
+            # 💡 [핵심 버그 수정 완결판]
+            # 선택한 언어 갯수에 따라 아예 불필요한 박스는 HTML 자체를 생성하지 않도록 차단합니다.
+            html_parts = []
+            
+            render_khmer = "크메르어" in read_langs
+            render_korean = "한국어" in read_langs
+            first_lang = read_langs[0] if read_langs else None
 
-            top_div_id = f'id="{unique_id}"' if hidden_id_target == "top" else ""
-            bottom_div_id = f'id="{unique_id}"' if hidden_id_target == "bottom" else ""
-
-            # 내부의 불필요했던 display: flex 속성들도 간결하게 청소했습니다.
-            html_combined_display = f"""<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
-                <div {top_div_id} style="{top_style}">
+            # 1. 크메르어 상자 (항상 위, 초록색)
+            if render_khmer:
+                khmer_html = f"<span class='khmer-custom-font' style='color: #0f5132;'>{selected_word_display}</span>"
+                
+                # 두 언어 모두 선택했고, 크메르어가 나중에 재생된다면 숨김 처리 (div_id 부여)
+                if first_lang != "크메르어" and len(read_langs) == 2:
+                    style = f"display: none; opacity: 0; padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
+                    div_id = f'id="{unique_id}"'
+                else:
+                    style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
+                    div_id = ""
+                    
+                html_parts.append(f'''
+                <div {div_id} style="{style}">
                     <div style="line-height: 1.5; padding-top: 1px;">
                         {khmer_html}
                     </div>
                 </div>
-                <div {bottom_div_id} style="{bottom_style}">
+                ''')
+
+            # 2. 한국어 상자 (항상 아래, 파란색, 인덱스 번호 부착)
+            if render_korean:
+                korean_html = f"<span style='color: #3b82f6; font-size: 15pt; font-weight: bold;'>{num_str}{selected_kor}</span>"
+                
+                # 두 언어 모두 선택했고, 한국어가 나중에 재생된다면 숨김 처리 (div_id 부여)
+                if first_lang != "한국어" and len(read_langs) == 2:
+                    style = f"display: none; opacity: 0; padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
+                    div_id = f'id="{unique_id}"'
+                else:
+                    style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
+                    div_id = ""
+
+                html_parts.append(f'''
+                <div {div_id} style="{style}">
                     <div style="line-height: 1.5; padding-top: 1px;">
                         {korean_html}
                     </div>
                 </div>
+                ''')
+
+            html_combined_display = f"""<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
+                {''.join(html_parts)}
             </div>"""
             st.markdown(html_combined_display, unsafe_allow_html=True)
 
