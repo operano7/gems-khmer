@@ -23,12 +23,8 @@ st.markdown("""
     --font: 'Noto Sans Khmer', sans-serif;
 }
 
-/* 💡 [버그 수정] 앱 전체(body)에 캄보디아 폰트가 전염되어 숫자가 작아지던 현상 차단 */
-/* body, .stApp { font-family: 'Noto Sans Khmer', sans-serif; }  <-- 삭제됨 */
-
 .khmer-custom-font {
     font-family: 'Noto Sans Khmer', sans-serif !important;
-    /* 💡 [크기 보정] 영어 20pt와 시각적인 균형을 맞추기 위해 26pt로 대폭 확대 */
     font-size: 26pt !important; 
     font-weight: 700 !important;
 }
@@ -41,13 +37,12 @@ div[data-testid="stCheckbox"] p {
     white-space: nowrap !important;
 }
 
-/* 📊 표 스타일 제어: 휜색 테두리 눈에 띄게 추가 및 글자 크기 조정 */
+/* 📊 표 스타일 제어 */
 div[data-testid="stDataFrame"] {
     border: 1.5px solid #ffffff !important;
     border-radius: 0.25rem;
 }
 
-/* 💡 [가독성 향상] 크메르 문자의 특성을 고려해 표 내부 글자를 10pt -> 13pt로 확대 */
 div[data-testid="stDataFrame"] data-grid-canvas {
     font-size: 13pt !important; 
 }
@@ -738,18 +733,18 @@ if processed_df is not None:
                     st.error(err)
 
             num_str = f"[{selected_num}] " if selected_num else ""
-            box_padding = "6px 14px"
+            
+            # 💡 [버그 수정] 상자 사이의 여백 최소화 및 padding 조절
+            box_padding_top_bottom = "2px"
+            box_padding_left_right = "14px"
+            box_padding = f"{box_padding_top_bottom} {box_padding_left_right}"
+            
             unique_id = f"hidden_box_{target_idx}_{int(time.time() * 1000)}"
 
             html_parts = []
             render_khmer = "크메르어" in read_langs
             render_korean = "한국어" in read_langs
             first_lang = read_langs[0] if read_langs else None
-
-            # 💡 [UI 구조 및 폰트 통합]
-            # 1. 크메르어는 항상 위, 한국어는 항상 아래 고정
-            # 2. 먼저 재생되는 언어(메인)는 파란색+인덱스 번호, 보조 언어는 초록색+숨김
-            # 3. 언어에 상관없이 모두 '큰 글씨(20pt / 26pt)'로 통일
 
             blue_bg = f"padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
             green_bg = f"padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
@@ -760,7 +755,6 @@ if processed_df is not None:
 
             num_html_blue = f"<span style='color: {blue_text}; font-size: 20pt; font-weight: bold;'>{num_str}</span>" if num_str else ""
 
-            # 크메르어 설정 (항상 상단)
             if first_lang == "크메르어":
                 khm_box_style = blue_bg
                 khm_text_color = blue_text
@@ -772,7 +766,6 @@ if processed_df is not None:
                 khm_num = ""
                 khm_is_hidden = (len(read_langs) == 2)
 
-            # 한국어 설정 (항상 하단)
             if first_lang == "한국어":
                 kor_box_style = blue_bg
                 kor_text_color = blue_text
@@ -788,15 +781,18 @@ if processed_df is not None:
                 khmer_content = f"{khm_num}<span class='khmer-custom-font' style='color: {khm_text_color};'>{selected_word_display}</span>"
                 final_khm_style = hidden_style + khm_box_style if khm_is_hidden else khm_box_style
                 div_id = f'id="{unique_id}"' if khm_is_hidden else ""
-                html_parts.append(f'<div {div_id} style="{final_khm_style}"><div style="line-height: 1.5; padding-top: 1px;">{khmer_content}</div></div>')
+                # line-height 조정하여 텍스트 상단 공백 감소
+                html_parts.append(f'<div {div_id} style="{final_khm_style}"><div style="line-height: 1.2; padding-top: 0px; padding-bottom: 0px;">{khmer_content}</div></div>')
 
             if render_korean:
                 korean_content = f"{kor_num}<span style='color: {kor_text_color}; font-size: 20pt; font-weight: bold;'>{selected_kor}</span>"
                 final_kor_style = hidden_style + kor_box_style if kor_is_hidden else kor_box_style
                 div_id = f'id="{unique_id}"' if kor_is_hidden else ""
-                html_parts.append(f'<div {div_id} style="{final_kor_style}"><div style="line-height: 1.5; padding-top: 1px;">{korean_content}</div></div>')
+                # line-height 조정하여 텍스트 상단 공백 감소
+                html_parts.append(f'<div {div_id} style="{final_kor_style}"><div style="line-height: 1.2; padding-top: 0px; padding-bottom: 0px;">{korean_content}</div></div>')
 
-            html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
+            # gap을 6px에서 2px로 줄여 상자 간 간격 최소화
+            html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 2px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
             st.markdown(html_combined_display, unsafe_allow_html=True)
 
             st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
@@ -857,23 +853,3 @@ if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
 if st.button("TOGGLE_CONT_BTN_XYZ", key="toggle_cont"):
     st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
     st.rerun()
-
-components.html("""
-<script>
-function hideTriggerButtons() {
-    var targetDoc = window.parent ? window.parent.document : document;
-    var buttons = targetDoc.querySelectorAll('button');
-    buttons.forEach(function(btn) {
-        var btnText = btn.innerText.trim();
-        if(btnText === 'AUTO_NEXT_BTN_XYZ' || btnText === 'TOGGLE_CONT_BTN_XYZ') {
-            btn.style.display = 'none';
-            if (btn.parentElement) {
-                btn.parentElement.style.display = 'none';
-            }
-        }
-    });
-}
-hideTriggerButtons();
-setInterval(hideTriggerButtons, 100);
-</script>
-""", height=0, width=0)
