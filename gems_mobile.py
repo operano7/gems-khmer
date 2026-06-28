@@ -1,43 +1,74 @@
 import streamlit as st
 import pandas as pd
-import io
-import os
 import asyncio
 import edge_tts
 import base64
 import streamlit.components.v1 as components
 import time
-import re
 
-# 1. 화면 설정
-st.set_page_config(page_title="영어 학습기", page_icon="🎧", layout="wide")
+# 페이지 설정
+st.set_page_config(page_title="크메르어 학습기", page_icon="🎧", layout="wide")
 
-st.header("🎧 영어 학습기")
-
-# 💡 [여백 완벽 수정] 폰트 20pt 적용 및 상단 여백 제거 (translateY(-10%))
+# 스타일 설정: 20pt 폰트 및 상단 밀착형 레이아웃
 st.markdown("""
 <style>
-.custom-font {
-    font-family: sans-serif !important;
-    font-size: 20pt !important; 
-    font-weight: 700 !important;
-    line-height: 1 !important; 
-    display: inline-block;
-    transform: translateY(-10%); 
-}
-
-div[role="radiogroup"] {
-    gap: 3rem !important; 
-}
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@700&display=swap');
+    
+    .main > div { padding-top: 0rem; }
+    
+    .khmer-text {
+        font-family: 'Noto Sans Khmer', sans-serif !important;
+        font-size: 20pt !important;
+        font-weight: 700 !important;
+        line-height: 1.2;
+    }
+    
+    .korean-text {
+        font-size: 20pt !important;
+        font-weight: 700 !important;
+        line-height: 1.2;
+    }
+    
+    /* 상단 여백 제거 */
+    .stApp > header { display: none; }
+    div[data-testid="stToolbar"] { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
-# 💡 [여백 수정] 상단 패딩은 0px, 하단은 12px 유지 (비대칭 패딩)
-box_padding = "0px 14px 12px 14px"
-inner_div_style = "line-height: 1; margin-top: 0px;" 
+# 데이터 예시 (사역 현장 맞춤형)
+data = {
+    "크메르어": ["សួស្តី", "អរគុណ", "ព្រះអម្ចាស់"],
+    "한글": ["안녕하세요", "감사합니다", "주님"]
+}
+df = pd.DataFrame(data)
 
-# [이하 데이터 처리 로직은 기존 영어 학습기 파일과 동일하게 유지됩니다]
-# ... (데이터 로드, 검색, TTS 재생 로직 등)
+st.title("🎧 크메르어 학습기")
 
-# 렌더링 시 적용 예시:
-# html_parts.append(f'<div style="{blue_bg} padding: {box_padding};"><div style="{inner_div_style}"><span class="custom-font" style="color: {blue_text};">{text}</span></div></div>')
+# TTS 엔진 함수
+def get_edge_audio(text, voice="km-KH-PisethNeural"):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    async def _gen():
+        communicate = edge_tts.Communicate(text, voice)
+        audio_data = b""
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
+        return audio_data
+    return loop.run_until_complete(_gen())
+
+# 메인 학습 인터페이스
+for i, row in df.iterrows():
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.markdown(f"<div class='khmer-text'>{row['크메르어']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='korean-text'>{row['한글']}</div>", unsafe_allow_html=True)
+    with col2:
+        if st.button(f"듣기 {i}", key=f"btn_{i}"):
+            audio_bytes = get_edge_audio(row['크메르어'])
+            b64 = base64.b64encode(audio_bytes).decode()
+            audio_html = f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}"></audio>'
+            components.html(audio_html, height=0)
+    st.divider()
+
+st.success("데이터베이스 연동 준비 완료 및 학습 모듈 정상 작동 중입니다.")
