@@ -23,13 +23,13 @@ st.markdown("""
     --font: 'Noto Sans Khmer', sans-serif;
 }
 
-body, .stApp {
-    font-family: 'Noto Sans Khmer', sans-serif;
-}
+/* 💡 [버그 수정] 앱 전체(body)에 캄보디아 폰트가 전염되어 숫자가 작아지던 현상 차단 */
+/* body, .stApp { font-family: 'Noto Sans Khmer', sans-serif; }  <-- 삭제됨 */
 
 .khmer-custom-font {
     font-family: 'Noto Sans Khmer', sans-serif !important;
-    font-size: 20pt !important;
+    /* 💡 [크기 보정] 영어 20pt와 시각적인 균형을 맞추기 위해 26pt로 대폭 확대 */
+    font-size: 26pt !important; 
     font-weight: 700 !important;
 }
 
@@ -47,8 +47,9 @@ div[data-testid="stDataFrame"] {
     border-radius: 0.25rem;
 }
 
+/* 💡 [가독성 향상] 크메르 문자의 특성을 고려해 표 내부 글자를 10pt -> 13pt로 확대 */
 div[data-testid="stDataFrame"] data-grid-canvas {
-    font-size: 10pt !important;
+    font-size: 13pt !important; 
 }
 </style>
 <div style="font-family: 'Noto Sans Khmer'; font-weight: 700; position: absolute; width: 0; height: 0; overflow: hidden;">
@@ -755,7 +756,9 @@ if processed_df is not None:
                 has_primary = render_korean
                 has_secondary = render_khmer
             else:
-                primary_html = f"<span class='khmer-custom-font' style='color: #3b82f6;'>{num_str}{selected_word_display}</span>"
+                # 💡 [수정] 번호 대괄호([123])는 크메르어 폰트의 영향을 받지 않고 크고 시원하게 보이도록 분리하여 20pt로 고정
+                num_html = f"<span style='color: #3b82f6; font-size: 20pt; font-weight: bold;'>{num_str}</span>" if num_str else ""
+                primary_html = f"{num_html}<span class='khmer-custom-font' style='color: #3b82f6;'>{selected_word_display}</span>"
                 secondary_html = f"<span style='color: #0f5132; font-size: 15pt; font-weight: bold;'>{selected_kor}</span>"
                 has_primary = render_khmer
                 has_secondary = render_korean
