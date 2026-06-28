@@ -412,47 +412,9 @@ if processed_df is not None:
     if st.session_state.current_play_idx >= len(filtered_df):
         st.session_state.current_play_idx = 0
 
-    col_hidden1, col_hidden2 = st.columns(2)
-    with col_hidden1:
-        if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
-            if st.session_state.current_play_idx + 1 < len(filtered_df):
-                st.session_state.current_play_idx += 1
-                st.rerun()
-            else:
-                st.success("🎉 단어장의 끝에 도달했습니다!")
-                st.session_state.is_continuous_playing = False
-                st.rerun()
-
-    with col_hidden2:
-        if st.button("TOGGLE_CONT_BTN_XYZ", key="toggle_cont"):
-            st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
-            st.rerun()
-
-    # 생성된 버튼을 빛의 속도로 강제 숨김 처리하는 JS 스크립트
-    components.html("""
-    <script>
-    function hideTriggerButtons() {
-        var targetDoc = window.parent ? window.parent.document : document;
-        var buttons = targetDoc.querySelectorAll('button');
-        buttons.forEach(function(btn) {
-            var txt = btn.innerText || "";
-            if(txt.indexOf('AUTO_NEXT_BTN_XYZ') !== -1 || txt.indexOf('TOGGLE_CONT_BTN_XYZ') !== -1) {
-                btn.style.display = 'none';
-                var col = btn.closest('div[data-testid="column"]');
-                if(col) { 
-                    col.style.display = 'none'; 
-                    col.style.width = '0px'; 
-                    col.style.padding = '0px'; 
-                }
-                var elCont = btn.closest('div[data-testid="stElementContainer"]');
-                if(elCont) { elCont.style.display = 'none'; }
-            }
-        });
-    }
-    hideTriggerButtons();
-    setInterval(hideTriggerButtons, 50);
-    </script>
-    """, height=0, width=0)
+    # 연속 재생 제어용 숨김 버튼은 파일 맨 마지막에 한 번만 만든다.
+    # 이 위치에서 미리 st.columns()/components.html을 만들면,
+    # 화면에는 보이지 않아도 문장 카드 위에 빈 세로 공간이 남는다.
 
 # Edge TTS 비동기 처리 엔진
 def get_edge_audio_sync(text, voice_model, rate_str):
