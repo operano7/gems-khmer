@@ -734,10 +734,9 @@ if processed_df is not None:
 
             num_str = f"[{selected_num}] " if selected_num else ""
             
-            # 💡 [버그 수정] 상자 사이의 여백 최소화 및 padding 조절
-            box_padding_top_bottom = "2px"
-            box_padding_left_right = "14px"
-            box_padding = f"{box_padding_top_bottom} {box_padding_left_right}"
+            # 💡 [여백 완벽 수정] 윗공간은 축소하고 아랫공간은 복구 (비대칭 패딩 적용)
+            box_padding = "0px 14px 12px 14px" # 상단 0px, 우측 14px, 하단 12px, 좌측 14px
+            inner_div_style = "line-height: 1.3; margin-top: -2px;" # 폰트 자체의 상단 여백 상쇄
             
             unique_id = f"hidden_box_{target_idx}_{int(time.time() * 1000)}"
 
@@ -781,18 +780,16 @@ if processed_df is not None:
                 khmer_content = f"{khm_num}<span class='khmer-custom-font' style='color: {khm_text_color};'>{selected_word_display}</span>"
                 final_khm_style = hidden_style + khm_box_style if khm_is_hidden else khm_box_style
                 div_id = f'id="{unique_id}"' if khm_is_hidden else ""
-                # line-height 조정하여 텍스트 상단 공백 감소
-                html_parts.append(f'<div {div_id} style="{final_khm_style}"><div style="line-height: 1.2; padding-top: 0px; padding-bottom: 0px;">{khmer_content}</div></div>')
+                html_parts.append(f'<div {div_id} style="{final_khm_style}"><div style="{inner_div_style}">{khmer_content}</div></div>')
 
             if render_korean:
                 korean_content = f"{kor_num}<span style='color: {kor_text_color}; font-size: 20pt; font-weight: bold;'>{selected_kor}</span>"
                 final_kor_style = hidden_style + kor_box_style if kor_is_hidden else kor_box_style
                 div_id = f'id="{unique_id}"' if kor_is_hidden else ""
-                # line-height 조정하여 텍스트 상단 공백 감소
-                html_parts.append(f'<div {div_id} style="{final_kor_style}"><div style="line-height: 1.2; padding-top: 0px; padding-bottom: 0px;">{korean_content}</div></div>')
+                html_parts.append(f'<div {div_id} style="{final_kor_style}"><div style="{inner_div_style}">{korean_content}</div></div>')
 
-            # gap을 6px에서 2px로 줄여 상자 간 간격 최소화
-            html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 2px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
+            # gap을 4px로 설정하여 상자 간격 안정화
+            html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 0px;">{"".join(html_parts)}</div>'
             st.markdown(html_combined_display, unsafe_allow_html=True)
 
             st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
