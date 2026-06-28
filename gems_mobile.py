@@ -348,4 +348,481 @@ def apply_fixed_patterns(df, target_col, frequent_patterns=None):
                 
                 boundary_start = r"(?<![\w'])"
                 boundary_end = r"(?![\w'])"
-                regex_parts = [boundary_start + re.escape(w) + boundary_
+                # 💡 [잘린 코드 복구] 아래 줄의 끝부분이 잘려 있었습니다!
+                regex_parts = [boundary_start + re.escape(w) + boundary_end for w in pat_words]
+                non_word_pattern = r"[^\w']*"    
+                regex_str = r'(' + non_word_pattern.join(regex_parts) + r')'
+                
+                for match in re.finditer(regex_str, text_str, re.IGNORECASE):
+                    start, end = match.span(1)
+                    
+                    if pat_type == "시작" and pat_len == 2:
+                        prefix = text_str[:start]
+                        last_punc_idx = -1
+                        for p_match in re.finditer(r'[.,?!;:—\n]', prefix):
+                            last_punc_idx = p_match.end()
+                            
+                        phrase_prefix = prefix[max(0, last_punc_idx):]
+                        if re.search(r'[A-Za-z0-9\u1780-\u17FF]', phrase_prefix): # 크메르어 유니코드 범위 포함
+                            continue 
+                    
+                    overlap = False
+                    for ms, me in matched_spans:
+                        if not (end <= ms or start >= me):
+                            overlap = True
+                            break
+                    
+                    if not overlap:
+                        matched_spans.append((start, end))
+                        
+        if not matched_spans:
+            return text_str
+            
+        matched_spans.sort(key=lambda x: x[0])
+        
+        result = []
+        last_idx = 0
+        for start, end in matched_spans:
+            result.append(text_str[last_idx:start])
+            actual_text = text_str[start:end]
+            result.append(f"<span style='color: {highlight_color}; font-weight: bold;'>{actual_text}</span>")
+            last_idx = end
+        result.append(text_str[last_idx:])
+        
+        return "".join(result)
+
+    df = df.copy()
+    df[target_col + '_display'] = df[target_col].apply(highlight_text)
+    return df
+
+processed_df = apply_fixed_patterns(processed_df, target_col=KHMER_TARGET_COL, frequent_patterns=MASTER_PATTERNS)
+
+# 고스트 렌더링 방지 및 순서 최적화
+if processed_df is not None:
+    if search_query:
+        keywords = search_query.strip().split()
+        final_match_cond = pd.Series(True, index=processed_df.index)
+        
+        for keyword in keywords:
+            keyword_match = pd.Series(False, index=processed_df.index)
+            for col in processed_df.columns:
+                keyword_match |= processed_df[col].astype(str).str.contains(keyword, na=False, case=False, regex=False)
+            final_match_cond &= keyword_match
+            
+        filtered_df = processed_df[final_match_cond].reset_index(drop=True)
+    else:
+        filtered_df = processed_df.reset_index(drop=True)
+
+    if st.session_state.current_play_idx >= len(filtered_df):
+        st.session_state.current_play_idx = 0
+
+    col_hidden1, col_hidden2 = st.columns(2)
+    with col_hidden1:
+        if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
+            if st.session_state.current_play_idx + 1 < len(filtered_df):
+                st.session_state.current_play_idx += 1
+                st.rerun()
+            else:
+                st.success("🎉 단어장의 끝에 도달했습니다!")
+                st.session_state.is_continuous_playing = False
+                st.rerun()
+
+    with col_hidden2:
+        if st.button("TOGGLE_CONT_BTN_XYZ", key="toggle_cont"):
+            st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
+            st.rerun()
+
+# Edge TTS 비동기 처리 엔진
+def get_edge_audio_sync(text, voice_model, rate_str):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    async def _generate():
+        communicate = edge_tts.Communicate(text, voice_model, rate=rate_str)
+        audio_data = b""
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
+        return audio_data
+        
+    result = loop.run_until_complete(_generate())
+    loop.close()
+    return result
+
+@st.cache_data(show_spinner=False)
+def generate_multiple_audios(khm_text, kor_text, selected_options, edge_rate, gtts_slow, read_langs_list):
+    audio_results = []
+    error_messages = []
+    
+    for opt in selected_options:
+        for lang in read_langs_list:
+            if lang == "한국어":
+                text_to_read = kor_text
+                lang_code = 'ko'
+                voice_model = "ko-KR-InJoonNeural" if "남성" in opt else "ko-KR-SunHiNeural"
+            else: 
+                text_to_read = khm_text
+                lang_code = 'km'
+                voice_model = "km-KH-PisethNeural" if "남성" in opt else "km-KH-SreymomNeural"
+                
+            if not text_to_read:
+                continue
+                
+            if "Edge" in opt:
+                try:
+                    audio_content = get_edge_audio_sync(text_to_read, voice_model, edge_rate)
+                    audio_results.append(audio_content)
+                except Exception as e:
+                    error_messages.append(f"Edge TTS ({opt} - {lang}) 에러: {str(e)}")
+            else:
+                try:
+                    from gtts import gTTS
+                    tts = gTTS(text=text_to_read, lang=lang_code, slow=gtts_slow)
+                    fp = io.BytesIO()
+                    tts.write_to_fp(fp)
+                    audio_results.append(fp.getvalue())
+                except Exception as e:
+                    error_messages.append(f"Google TTS ({lang}) 에러: {str(e)}")
+                    
+    return audio_results, error_messages
+
+def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, lang_delay_ms=0, box_id="hidden_second_lang"):
+    b64_audios = []
+    if audio_bytes_list:
+        for ab in audio_bytes_list:
+            b64 = base64.b64encode(ab).decode()
+            b64_audios.append(f"data:audio/mp3;base64,{b64}")
+
+    js_array = str(b64_audios).replace("'", '"')
+    
+    cont_text = "⏹️ 중지" if is_continuous else "⏭️ 연속"
+    cont_color = "#dc3545" if is_continuous else "#212529"
+    
+    # 💡 [JS 핵심 수정] 빈 공백을 지우기 위해 display: none 을 동적으로 관리합니다.
+    html_code = f"""
+    <style>
+        body {{ margin: 0; padding: 0; overflow: hidden; }}
+        #btnContainer {{ display: flex; gap: 8px; justify-content: flex-start; align-items: center; width: 100%; }}
+        .custom-btn {{
+            font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 16px; color: #ffffff; padding: 0 14px; height: 38.4px;
+            display: inline-flex; justify-content: center; align-items: center;
+            border-radius: 0.5rem; cursor: pointer; transition: filter 0.2s ease, transform 0.1s;
+            box-sizing: border-box; user-select: none; line-height: 1; white-space: nowrap;
+            border: 1px solid transparent;
+        }}
+        .custom-btn:hover {{ filter: brightness(0.85); }}
+        .custom-btn:active {{ transform: scale(0.98); }}
+        #contBtn {{ background-color: {cont_color}; border-color: {cont_color}; }}
+    </style>
+
+    <div id="btnContainer">
+        <div id="contBtn" class="custom-btn">{cont_text}</div>
+        <div id="playBtn" class="custom-btn">▶️ 재생</div>
+    </div>
+    
+    <script>
+        var audios = {js_array};
+        var currentIdx = 0;
+        var player = null; 
+        var playBtn = document.getElementById("playBtn");
+        var contBtn = document.getElementById("contBtn");
+        var isContinuous = {'true' if is_continuous else 'false'};
+        var delayMs = {delay_ms};
+        var langDelayMs = {lang_delay_ms};
+        var boxId = '{box_id}'; 
+        
+        var playedKey = 'played_' + boxId;
+
+        function hideCurrentBoxInstantly() {{
+            var targetDoc = window.parent ? window.parent.document : document;
+            var box = targetDoc.getElementById(boxId);
+            if (box) {{
+                box.style.transition = 'none'; 
+                box.style.opacity = '0';
+                box.style.display = 'none'; // 빈 공백 삭제
+            }}
+        }}
+
+        function revealSecondLanguage() {{
+            var currentTargetDoc = window.parent ? window.parent.document : document;
+            var currentHiddenBox = currentTargetDoc.getElementById(boxId);
+            if (currentHiddenBox) {{
+                currentHiddenBox.style.display = 'block'; // 공간 생성
+                setTimeout(function() {{
+                    currentHiddenBox.style.transition = 'opacity 0.4s ease-in-out';
+                    currentHiddenBox.style.opacity = '1';
+                }}, 20); // 렌더링 후 페이드인 애니메이션
+            }}
+        }}
+
+        playBtn.innerText = isContinuous ? "🔊 연속 재생중" : "▶️ 재생";
+        playBtn.style.backgroundColor = isContinuous ? "#198754" : "#0d6efd";
+        playBtn.style.borderColor = isContinuous ? "#198754" : "#0d6efd";
+        playBtn.style.color = "#ffffff";
+
+        contBtn.onclick = function() {{
+            var targetDoc = window.parent ? window.parent.document : document;
+            var buttons = targetDoc.querySelectorAll('button');
+            for(var i=0; i<buttons.length; i++) {{
+                if(buttons[i].innerText.trim() === 'TOGGLE_CONT_BTN_XYZ') {{
+                    buttons[i].click();
+                    break;
+                }}
+            }}
+        }};
+
+        function playAudio(index) {{
+            if (player) {{
+                player.pause();
+                player.removeAttribute('src');
+                player.load();
+                player = null; 
+            }}
+
+            if (index >= audios.length) return;
+
+            player = new Audio(audios[index]);
+
+            player.onplay = function() {{
+                playBtn.innerText = isContinuous ? "🔊 연속 재생중" : "🔊 재생중";
+                playBtn.style.backgroundColor = "#198754";
+                playBtn.style.borderColor = "#198754";
+                if (index >= 1) revealSecondLanguage();
+            }};
+
+            player.onended = function() {{
+                currentIdx++;
+                
+                if (audios.length === 1 && currentIdx === 1) revealSecondLanguage();
+
+                if(currentIdx < audios.length) {{
+                    if (langDelayMs > 0) {{
+                        playBtn.innerText = "⏳ 발음 대기중...";
+                        playBtn.style.backgroundColor = "#ffc107";
+                        playBtn.style.borderColor = "#ffc107";
+                        playBtn.style.color = "#000000";
+                        setTimeout(function() {{ playAudio(currentIdx); }}, langDelayMs);
+                    }} else {{
+                        setTimeout(function() {{ playAudio(currentIdx); }}, 50);
+                    }}
+                }} else {{
+                    if (isContinuous) {{
+                        hideCurrentBoxInstantly();
+                        playBtn.innerText = "⏳ 다음 문장 대기중...";
+                        playBtn.style.backgroundColor = "#ffc107";
+                        playBtn.style.borderColor = "#ffc107";
+                        playBtn.style.color = "#000000";
+                        
+                        setTimeout(function() {{
+                            var targetDoc = window.parent ? window.parent.document : document;
+                            var buttons = targetDoc.querySelectorAll('button');
+                            for(var i=0; i<buttons.length; i++) {{
+                                if(buttons[i].innerText.trim() === 'AUTO_NEXT_BTN_XYZ') {{
+                                    buttons[i].click();
+                                    break;
+                                }}
+                            }}
+                        }}, delayMs);
+                    }} else {{
+                        playBtn.innerText = "▶️ 재생"; 
+                        playBtn.style.backgroundColor = "#0d6efd"; 
+                        playBtn.style.borderColor = "#0d6efd";
+                        playBtn.style.color = "#ffffff";
+                    }}
+                }}
+            }};
+
+            var playPromise = player.play();
+            if (playPromise !== undefined) {{
+                playPromise.catch(function(error) {{
+                    console.log("Autoplay blocked.");
+                }});
+            }}
+        }}
+
+        playBtn.onclick = function() {{
+            if (!player || currentIdx >= audios.length) {{
+                currentIdx = 0;
+                playAudio(0);
+            }} else if (player.paused) {{
+                player.play();
+            }}
+        }};
+
+        if(audios.length > 0) {{
+            if (!sessionStorage.getItem(playedKey)) {{
+                sessionStorage.setItem(playedKey, 'true'); 
+                playAudio(0);
+            }} else {{
+                playBtn.innerText = isContinuous ? "⏳ 다음 문장 준비중..." : "▶️ 다시 재생";
+                if (isContinuous) {{
+                    playBtn.style.backgroundColor = "#ffc107";
+                    playBtn.style.borderColor = "#ffc107";
+                    playBtn.style.color = "#000000";
+                }}
+            }}
+        }} else {{
+            revealSecondLanguage();
+            playBtn.innerText = "⚠️ 음성 없음";
+            playBtn.style.backgroundColor = "#6c757d";
+            playBtn.style.borderColor = "#6c757d";
+            playBtn.style.cursor = "not-allowed";
+        }}
+    </script>
+    """
+    
+    components.html(html_code, height=40)
+
+if processed_df is not None:
+    if "word_table" in st.session_state:
+        sel = st.session_state.word_table
+        sel_rows = []
+        if hasattr(sel, "selection"):
+            sel_rows = sel.selection.rows
+        elif isinstance(sel, dict):
+            sel_rows = sel.get("selection", {}).get("rows", [])
+            
+        if sel_rows and "current_display_indices" in st.session_state:
+            ui_idx = sel_rows[0]
+            if ui_idx < len(st.session_state.current_display_indices):
+                current_selection = st.session_state.current_display_indices[ui_idx]
+                if current_selection != st.session_state.last_clicked_row:
+                    st.session_state.last_clicked_row = current_selection
+                    st.session_state.is_continuous_playing = False
+                    st.session_state.current_play_idx = current_selection
+
+    target_idx = st.session_state.current_play_idx
+    audio_datas = []
+    
+    if st.session_state.is_continuous_playing or (0 <= target_idx < len(filtered_df)):
+        if target_idx < len(filtered_df):
+            selected_num = filtered_df.iloc[target_idx].get('번호', filtered_df.iloc[target_idx].get('No.', ''))
+            
+            selected_word = filtered_df.iloc[target_idx].get(KHMER_TARGET_COL, '') if KHMER_TARGET_COL else ''
+            selected_word_display = filtered_df.iloc[target_idx].get(f'{KHMER_TARGET_COL}_display', selected_word) if KHMER_TARGET_COL else selected_word
+            
+            kor_col = '해석' if '해석' in filtered_df.columns else '한국어 의미' if '한국어 의미' in filtered_df.columns else ''
+            selected_kor = filtered_df.iloc[target_idx].get(kor_col, '') if kor_col else ''
+
+            if voice_options and read_langs:
+                audio_datas, error_msgs = generate_multiple_audios(selected_word, selected_kor, voice_options, final_edge_rate_str, final_gtts_slow, read_langs)
+                for err in error_msgs:
+                    st.error(err)
+
+            num_str = f"[{selected_num}] " if selected_num else ""
+            box_padding = "6px 14px"
+
+            # 💡 [핵심 수정 1] "캄보디아어 무조건 위, 한국어 무조건 아래" 절대 원칙 복구
+            # 💡 [핵심 수정 2] 파란색 한국어 텍스트에만 인덱스 번호 부착 고정
+            khmer_html = f"<span class='khmer-custom-font' style='color: #0f5132;'>{selected_word_display}</span>"
+            korean_html = f"<span style='color: #3b82f6; font-size: 15pt; font-weight: bold;'>{num_str}{selected_kor}</span>"
+
+            unique_id = f"hidden_box_{target_idx}_{int(time.time() * 1000)}"
+
+            # 💡 [핵심 수정 3] 나중에 재생될 상자를 display: none 으로 설정하여 불필요한 공백을 완전히 제거합니다.
+            if read_langs and read_langs[0] == "한국어":
+                top_style = f"display: none; opacity: 0; padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
+                bottom_style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
+                hidden_id_target = "top"
+            else:
+                top_style = f"padding: {box_padding}; border-radius: 0.5rem; background-color: #d1e7dd; border: 1px solid #badbcc;"
+                bottom_style = f"display: none; opacity: 0; padding: {box_padding}; border-radius: 0.5rem; background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);"
+                hidden_id_target = "bottom"
+
+            top_div_id = f'id="{unique_id}"' if hidden_id_target == "top" else ""
+            bottom_div_id = f'id="{unique_id}"' if hidden_id_target == "bottom" else ""
+
+            # 내부의 불필요했던 display: flex 속성들도 간결하게 청소했습니다.
+            html_combined_display = f"""<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">
+                <div {top_div_id} style="{top_style}">
+                    <div style="line-height: 1.5; padding-top: 1px;">
+                        {khmer_html}
+                    </div>
+                </div>
+                <div {bottom_div_id} style="{bottom_style}">
+                    <div style="line-height: 1.5; padding-top: 1px;">
+                        {korean_html}
+                    </div>
+                </div>
+            </div>"""
+            st.markdown(html_combined_display, unsafe_allow_html=True)
+
+            st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+            
+            col_caption, col_nav, col_buttons = st.columns([0.2, 0.45, 0.35])
+            
+            with col_caption:
+                st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 <b>{len(filtered_df)}</b>개 항목</div>", unsafe_allow_html=True)
+                
+            with col_nav:
+                new_target = st.slider("빠른 이동", min_value=1, max_value=max(1, len(filtered_df)), value=target_idx + 1, label_visibility="collapsed")
+                if new_target - 1 != target_idx:
+                    st.session_state.current_play_idx = new_target - 1
+                    st.session_state.is_continuous_playing = False
+                    st.session_state.last_clicked_row = None
+                    st.rerun()
+                    
+            with col_buttons:
+                play_sequential_audio(audio_datas, is_continuous=st.session_state.is_continuous_playing, delay_ms=delay_ms, lang_delay_ms=lang_delay_ms, box_id=unique_id)
+    else:
+        st.session_state.is_continuous_playing = False
+        st.markdown("<hr style='margin-top: 10px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+        st.markdown(f"<div style='padding-top: 8px; font-size: 14px; color: gray;'>총 {len(filtered_df)}개의 항목</div>", unsafe_allow_html=True)
+
+    display_df = filtered_df.copy()
+    
+    if KHMER_TARGET_COL and f'{KHMER_TARGET_COL}_display' in display_df.columns:
+        display_df = display_df.drop(columns=[f'{KHMER_TARGET_COL}_display'])
+        
+    st.session_state.current_display_indices = display_df.index.tolist()
+
+    if target_idx in display_df.index:
+        num_col = '번호' if '번호' in display_df.columns else 'No.' if 'No.' in display_df.columns else None
+        if num_col:
+            display_df.loc[target_idx, num_col] = f"▶ {display_df.loc[target_idx, num_col]}"
+        elif KHMER_TARGET_COL:
+            display_df.loc[target_idx, KHMER_TARGET_COL] = f"▶ {display_df.loc[target_idx, KHMER_TARGET_COL]}"
+
+    selection = st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="word_table",
+        height=500
+    )
+
+if st.button("AUTO_NEXT_BTN_XYZ", key="auto_next"):
+    if st.session_state.current_play_idx + 1 < len(filtered_df):
+        st.session_state.current_play_idx += 1
+        st.rerun()
+    else:
+        st.success("🎉 단어장의 끝에 도달했습니다!")
+        st.session_state.is_continuous_playing = False
+        st.rerun()
+
+if st.button("TOGGLE_CONT_BTN_XYZ", key="toggle_cont"):
+    st.session_state.is_continuous_playing = not st.session_state.is_continuous_playing
+    st.rerun()
+
+components.html("""
+<script>
+function hideTriggerButtons() {
+    var targetDoc = window.parent ? window.parent.document : document;
+    var buttons = targetDoc.querySelectorAll('button');
+    buttons.forEach(function(btn) {
+        var btnText = btn.innerText.trim();
+        if(btnText === 'AUTO_NEXT_BTN_XYZ' || btnText === 'TOGGLE_CONT_BTN_XYZ') {
+            btn.style.display = 'none';
+            if (btn.parentElement) {
+                btn.parentElement.style.display = 'none';
+            }
+        }
+    });
+}
+hideTriggerButtons();
+setInterval(hideTriggerButtons, 100);
+</script>
+""", height=0, width=0)
