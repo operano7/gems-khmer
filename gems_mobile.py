@@ -131,6 +131,7 @@ if not voice_options:
 st.markdown("<hr style='margin-top: 0px; margin-bottom: 15px;'>", unsafe_allow_html=True)
 
 # 속도 조절 UI
+st.markdown("🐢 **음성 재생 속도를 선택하세요:**")
 speed_choice = st.radio(
     "속도 선택",
     options=["아주 느리게 (0.6x)", "조금 느리게 (0.8x)", "보통 속도 (1.0x)"],
@@ -765,8 +766,6 @@ if processed_df is not None:
                 b64_second_lang = base64.b64encode(second_lang_html.encode('utf-8')).decode('utf-8')
                 
                 # [핵심 로직 변경] Streamlit React DOM 재사용 강제 파기 (Tag-Swap)
-                # target_idx에 따라 태그를 번갈아 사용하여, 사용자가 새 문장을 클릭할 때 
-                # 이전 문장의 찌꺼기가 남은 DOM을 무조건 파괴하고 새로 생성하도록 강제합니다.
                 tag_name = "section" if target_idx % 2 == 0 else "article"
                 
                 html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{first_lang_html}<{tag_name} title="{unique_id}" style="transition: opacity 0.4s; opacity: 0; width: 100%; display: block;"></{tag_name}></div>'
