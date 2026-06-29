@@ -518,9 +518,19 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
         
         var playedKey = 'played_' + boxId;
 
+        // [이중 방어] iframe 로딩 즉시 이전 DOM 찌꺼기 완벽 청소
+        (function forceClearGarbageDOM() {{
+            var targetDoc = window.parent ? window.parent.document : document;
+            var box = targetDoc.querySelector('[title="' + boxId + '"]');
+            if (box) {{
+                box.innerHTML = "";
+                box.style.opacity = '0';
+            }}
+        }})();
+
         function hideCurrentBoxInstantly() {{
             var targetDoc = window.parent ? window.parent.document : document;
-            var box = targetDoc.querySelector('div[title="' + boxId + '"]');
+            var box = targetDoc.querySelector('[title="' + boxId + '"]');
             if (box) {{
                 box.innerHTML = ""; 
                 box.style.opacity = '0';
@@ -530,13 +540,11 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
         function revealSecondLanguage() {{
             if (b64Second === "") return;
             var targetDoc = window.parent ? window.parent.document : document;
-            var box = targetDoc.querySelector('div[title="' + boxId + '"]');
+            var box = targetDoc.querySelector('[title="' + boxId + '"]');
             
-            // 문제 해결 핵심: React DOM 재사용 버그를 원천 차단하기 위해 
-            // box.innerHTML === "" 조건을 삭제하고 매번 새 데이터를 무조건 강제 덮어쓰기(Overwrite) 합니다.
             if (box) {{
                 box.innerHTML = secondLangHtml;
-                box.style.display = 'flex'; 
+                box.style.display = 'block'; 
                 void box.offsetWidth; 
                 box.style.opacity = '1';
             }}
@@ -756,8 +764,12 @@ if processed_df is not None:
                 # 제2언어 HTML을 안전하게 암호화하여 자바스크립트로 전송 준비
                 b64_second_lang = base64.b64encode(second_lang_html.encode('utf-8')).decode('utf-8')
                 
-                # 제1언어는 즉시 표시하고, 제2언어가 들어갈 자리는 빈 껍데기(div)로 구성
-                html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{first_lang_html}<div title="{unique_id}" style="transition: opacity 0.4s; opacity: 0;"></div></div>'
+                # [핵심 로직 변경] Streamlit React DOM 재사용 강제 파기 (Tag-Swap)
+                # target_idx에 따라 태그를 번갈아 사용하여, 사용자가 새 문장을 클릭할 때 
+                # 이전 문장의 찌꺼기가 남은 DOM을 무조건 파괴하고 새로 생성하도록 강제합니다.
+                tag_name = "section" if target_idx % 2 == 0 else "article"
+                
+                html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{first_lang_html}<{tag_name} title="{unique_id}" style="transition: opacity 0.4s; opacity: 0; width: 100%; display: block;"></{tag_name}></div>'
             else:
                 single_lang_html = khmer_box_html if render_khmer else korean_box_html if render_korean else ""
                 html_combined_display = f'<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0px;">{single_lang_html}</div>'
