@@ -511,7 +511,6 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
         var boxId = '{box_id}'; 
         var b64Second = '{b64_second}';
         
-        // Base64로 전달받은 제2언어 HTML 디코딩 (DOMPurify 우회용)
         var secondLangHtml = "";
         if (b64Second !== "") {{
             secondLangHtml = decodeURIComponent(escape(window.atob(b64Second)));
@@ -523,7 +522,7 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
             var targetDoc = window.parent ? window.parent.document : document;
             var box = targetDoc.querySelector('div[title="' + boxId + '"]');
             if (box) {{
-                box.innerHTML = ""; // 컨테이너 내부를 완전히 비워서 숨김 보장
+                box.innerHTML = ""; 
                 box.style.opacity = '0';
             }}
         }}
@@ -532,10 +531,13 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
             if (b64Second === "") return;
             var targetDoc = window.parent ? window.parent.document : document;
             var box = targetDoc.querySelector('div[title="' + boxId + '"]');
-            // 빈 공간일 때만 HTML을 주입하여 화면에 나타나게 함
-            if (box && box.innerHTML === "") {{
+            
+            // 문제 해결 핵심: React DOM 재사용 버그를 원천 차단하기 위해 
+            // box.innerHTML === "" 조건을 삭제하고 매번 새 데이터를 무조건 강제 덮어쓰기(Overwrite) 합니다.
+            if (box) {{
                 box.innerHTML = secondLangHtml;
-                void box.offsetWidth; // 브라우저 리플로우 강제 트리거 (애니메이션 정상 작동용)
+                box.style.display = 'flex'; 
+                void box.offsetWidth; 
                 box.style.opacity = '1';
             }}
         }}
@@ -573,7 +575,6 @@ def play_sequential_audio(audio_bytes_list, is_continuous=False, delay_ms=3000, 
                 playBtn.innerText = isContinuous ? "🔊 연속 재생중" : "🔊 재생중";
                 playBtn.style.backgroundColor = "#198754";
                 playBtn.style.borderColor = "#198754";
-                // 제2언어 오디오가 재생되는 바로 그 순간에 텍스트 주입 실행
                 if (index >= 1) revealSecondLanguage();
             }};
 
@@ -706,7 +707,6 @@ if processed_df is not None:
             
             unique_id = f"hidden_box_{target_idx}_{int(time.time() * 1000)}"
 
-            # 공통 박스 디자인
             common_box_layout = (
                 f"padding: {box_padding}; min-height: 62px; box-sizing: border-box; "
                 f"display: flex; align-items: center;"
@@ -780,7 +780,6 @@ if processed_df is not None:
                     st.rerun()
                     
             with col_buttons:
-                # 수정된 오디오 플레이어 함수 호출 (암호화된 제2언어 데이터 전달)
                 play_sequential_audio(audio_datas, is_continuous=st.session_state.is_continuous_playing, delay_ms=delay_ms, lang_delay_ms=lang_delay_ms, box_id=unique_id, b64_second=b64_second_lang)
     else:
         st.session_state.is_continuous_playing = False
